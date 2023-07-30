@@ -13,13 +13,6 @@ def home():
     # TODO: Document the API and show it here
     return "Hydrofunctions API"
 
-@bp.route("/info/<site_id>")
-def info(site_id):
-    request = hf.site_file(site_id)
-    json = request.table.to_json()
-    return jsonify(json)
-
-
 @bp.route("/report/<site_id>", methods=["GET"])
 def get_report(site_id):
     global request
@@ -28,10 +21,12 @@ def get_report(site_id):
     start_date = request.args.get(
         "start_date", default=end_date - relativedelta(days=7)
     )
+    info = report.getInfo(site_id)
     timeline = report.getTimeline(site_id, start_date, end_date).to_json()
     weekly_delta = report.getDelta(site_id, end_date, freq="w")
     monthly_delta = report.getDelta(site_id, end_date, freq="m")
     data = {
+        "info": info,
         "timeline": timeline,
         "delta": {
             "week": weekly_delta,

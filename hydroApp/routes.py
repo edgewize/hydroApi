@@ -1,8 +1,7 @@
 from flask import Blueprint, jsonify, request
 import datetime
-import hydroApp.report as report
 from dateutil.relativedelta import relativedelta
-
+import hydroApp.report as report
 # 13206000 - Boise River
 
 bp = Blueprint("main", __name__)
@@ -25,8 +24,10 @@ def get_report(site_id):
     timeline = report.getTimeline(site_id, start_date, end_date).to_json()
     weekly_delta = report.getDelta(site_id, end_date, freq="w")
     monthly_delta = report.getDelta(site_id, end_date, freq="m")
+    screenshot = report.getLatestScreenshot()
     data = {
         "info": info,
+        "screenshot": screenshot,
         "timeline": timeline,
         "delta": {
             "week": weekly_delta,

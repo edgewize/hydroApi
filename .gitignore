@@ -1,4 +1,5 @@
 .env
+mask.xcf
 env
 env_wsl
 hydroApp/__pycache__

@@ -25,9 +25,11 @@ def get_report(site_id):
     weekly_delta = report.getDelta(site_id, end_date, freq="w")
     monthly_delta = report.getDelta(site_id, end_date, freq="m")
     screenshot = report.getLatestScreenshot()
+    process_img = report.process_image(screenshot)
     data = {
         "info": info,
         "screenshot": screenshot,
+        "detections": process_img,
         "timeline": timeline,
         "delta": {
             "week": weekly_delta,

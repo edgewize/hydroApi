@@ -4,7 +4,7 @@ import hydrofunctions as hf
 import pandas as pd
 from dotenv import load_dotenv
 import datetime
-
+from PIL import Image
 
 def getInfo(site_id):
     data = hf.site_file(site_id).table.to_json()
@@ -31,7 +31,6 @@ def getDelta(site_id, end_date, freq="d"):
     data = {"current": current_avg.values[0], "previous": previous_avg.values[0]}
     return data
 
-
 class WasabiStore():
     def __init__(self):
         load_dotenv()
@@ -40,6 +39,7 @@ class WasabiStore():
             aws_access_key_id =  os.getenv("WASABI_ACCESS"),
             aws_secret_access_key =  os.getenv("WASABI_SECRET")
         )
+        self.client = s3
         self.bucket = s3.Bucket('edginton-portfolio')
 
     def upload_file(self, upload_file_path, destination_path):
@@ -48,7 +48,7 @@ class WasabiStore():
 
     def list_files(self, path):
         return [i.key for i in self.bucket.objects.filter(Prefix=path)]
-
+    
 def getLatestScreenshot():
     files = WasabiStore().list_files("images/wave/")
     date_files = [i.split("/")[-1].replace(".png", "") for i in files if ":" in i]
@@ -58,5 +58,7 @@ def getLatestScreenshot():
     return latest_file[0].replace("images/", "")
 
 if __name__ == "__main__":
-    file = getLatestImg()
-    print(file)
+    s = WasabiStore()
+    files = s.list_files("images/wave")
+    image = Image.open(f"https://edgewize.imgix.net/{files[0]}")
+    display(image)

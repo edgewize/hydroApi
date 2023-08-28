@@ -1,2 +1,4 @@
+.env
 env
+env_wsl
 hydroApp/__pycache__

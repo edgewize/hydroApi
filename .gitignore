@@ -1,5 +1,7 @@
 .env
+.vscode
 mask.xcf
 env
-env_wsl
-hydroApp/__pycache__
+instance
+*__pycache__
+*.ipynb

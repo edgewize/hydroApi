@@ -75,7 +75,7 @@ class ScreenshotStore():
             aws_secret_access_key =  os.getenv("WASABI_SECRET")
         )
         self.bucket = s3.Bucket('edginton-portfolio')
-        self.imgcdn = "https://edgewize.imgix.net" 
+        self.imgcdn = "https://edgewize.imgix.net"
 
     def upload(self, img, save_path):
         temp_save_path = f"detect.png"
@@ -91,7 +91,7 @@ class ScreenshotStore():
 
     def list_files(self, path):
         return [i.key for i in self.bucket.objects.filter(Prefix=path)]
-        
+
     def get_latest_screenshot(self):
         files = self.list_files("images/wave/")
         date_files = [i.split("/")[-1].replace(".png", "") for i in files if ":" in i]
@@ -99,7 +99,7 @@ class ScreenshotStore():
         max_date = max(datetimes)
         latest_file = [i for i in files if str(max_date) in i]
         return latest_file[0]
-    
+
     def imgcdn_src(self, path):
         return self.imgcdn + path
 
@@ -139,9 +139,9 @@ def alpha_detector(image):
     return filtered_detections
 
 def create_screenshot(
-    timestamp: datetime.datetime.timestamp, url: str, human_count: int, reviewed: bool
-) -> str:   
-    screenshot = Screenshot(timestamp, url, human_count, reviewed)
+    timestamp: datetime.datetime.timestamp, url: str, human_count: int, human_mode:str, reviewed: bool
+) -> str:
+    screenshot = Screenshot(timestamp, url, human_count, human_mode, reviewed)
     db.session.add(screenshot)
     db.session.commit()
     return screenshot
@@ -164,7 +164,7 @@ def str_to_datetime(date_str):
 def get_screenshot(timestamp:str)->str:
     if "_" in timestamp:
         timestamp = timestamp.replace("_"," ")
-    record = Screenshot.query.get(str_to_datetime(timestamp)) 
+    record = Screenshot.query.get(str_to_datetime(timestamp))
     return record
 
 def transform_heatmap(detections):
@@ -172,7 +172,7 @@ def transform_heatmap(detections):
         [{"timestamp": i.screenshot_timestamp, "count": i.count} for i in detections]
     )
     df["weekday"] = df["timestamp"].apply(lambda x:  x.date().weekday())
-    df["hour"] = df["timestamp"].apply(lambda x:  x.time().hour) 
+    df["hour"] = df["timestamp"].apply(lambda x:  x.time().hour)
     weekdays = list(df["weekday"].sort_values().unique())
     hours = list(df["hour"].sort_values().unique())
     transform = df.groupby([df["hour"], df["weekday"]]).mean()["count"].reset_index()
@@ -194,7 +194,7 @@ def transform_heatmap(detections):
     }
     return heatmap
 
-        
+
 if __name__ == "__main__":
     from run import app
     from models import Screenshot

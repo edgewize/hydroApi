@@ -26,7 +26,7 @@ class Detection(db.Model):
         else:
             error = None
         return error
-    
+
     def usage_rating(self):
         if self.count > 12:
             usage = "high"
@@ -35,10 +35,10 @@ class Detection(db.Model):
         else:
             usage = "low"
         return usage
-        
+
 
     def imgsrc(self):
-        return detector.ScreenshotStore().imgcdn_src(f"/images/wave/{self.model}/{self.screenshot_timestamp}.png") 
+        return detector.ScreenshotStore().imgcdn_src(f"/images/wave/{self.model}/{self.screenshot_timestamp}.png")
 
 
 class Screenshot(db.Model):
@@ -78,7 +78,7 @@ class Screenshot(db.Model):
 
     def url_timestamp(self):
         return str(self.timestamp).replace(" ", "_")
-        
+
     def imgsrc(self):
         return detector.ScreenshotStore().imgcdn_src(f"/images/wave/{self.timestamp}.png")
 
@@ -98,20 +98,20 @@ class Screenshot(db.Model):
 
 if __name__ == "__main__":
     from run import app
-    import pandas as pd    
-    import hydroApp.detector as detector
+    import pandas as pd
 
     # Run this file directly to create the database tables.
     print("Creating database tables...")
     with app.app_context():
         db.drop_all()
         db.create_all()
-    print("Tables created")
+        print("Tables created")
 
-    print("Processing Images")
-    data = pd.read_csv("screenshots.csv")
-    screenshot_detector = detector.Detector("alpha", detector.alpha_detector)
-    for index, row in data.iterrows():
-        screenshot = detector.create_screenshot(row["timestamp"], row["url"], row["human_count"], row["human_mode"], row["reviewed"])
-        detection = screenshot.process(screenshot_detector)
-        print(f"{screenshot_detector.name} detected {detection.count} objects in {screenshot.timestamp}")
+        print("Processing Images")
+        data = pd.read_csv("screenshots.csv")
+        screenshot_detector = detector.Detector("alpha", detector.alpha_detector)
+        for index, row in data.iterrows():
+            timestamp = detector.str_to_datetime(row["timestamp"])
+            screenshot = detector.create_screenshot(timestamp, row["url"], row["human_count"], row["human_mode"], row["reviewed"])
+            detection = screenshot.process(screenshot_detector)
+            print(f"{screenshot_detector.name} detected {detection.count} objects in {screenshot.timestamp}")

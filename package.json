@@ -1,0 +1,14 @@
+{
+  "name": "hydroapi",
+  "version": "1.0.0",
+  "description": "API for accessing Hydrofunctions through web",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@picocss/pico": "^1.5.10"
+  }
+}

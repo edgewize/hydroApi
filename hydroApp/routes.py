@@ -1,110 +1,190 @@
-from flask import Blueprint, jsonify, request
 import datetime
+import pandas as pd
 from dateutil.relativedelta import relativedelta
-import hydroApp.report as report
+from flask import Blueprint, jsonify, request, render_template, redirect
 
-import models
 from hydroApp import db
-import datetime
+import hydroApp.detector as detector
+from models import Screenshot, Detection
 
 # 13206000 - Boise River
-
 
 bp = Blueprint("main", __name__)
 
 
 @bp.route("/")
 def home():
-    # TODO: Document the API and show it here
-    return "Hydrofunctions API"
-
-@bp.route("/report/<site_id>", methods=["GET"])
-def get_report(site_id):
-    global request
-    end_date = request.args.get("end_date", default=datetime.date.today())
-
-    start_date = request.args.get(
-        "start_date", default=end_date - relativedelta(days=7)
+    detection_model = "alpha"
+    screenshot_detector = detector.Detector(detection_model, detector.alpha_detector)
+    detections = Detection.query.filter(Detection.model == detection_model).all()
+    heatmap = detector.transform_heatmap(detections)      
+    screenshot = max(
+        Screenshot.query.filter(Screenshot.human_mode == "surf").all(),
+        key=lambda x: x.timestamp,
     )
-    info = report.getInfo(site_id)
-    timeline = report.getTimeline(site_id, start_date, end_date).to_json()
-    weekly_delta = report.getDelta(site_id, end_date, freq="w")
-    monthly_delta = report.getDelta(site_id, end_date, freq="m")
-    screenshot = report.getLatestScreenshot()
-    process_img = report.process_image(screenshot)
-    data = {
-        "info": info,
-        "screenshot": screenshot,
-        "detections": process_img,
-        "timeline": timeline,
-        "delta": {
-            "week": weekly_delta,
-            "month": monthly_delta
-        }
+    if len(screenshot.get_detections().all()) == 0:
+        detection = screenshot.process(screenshot_detector)
+    else:
+        detection = Detection.query.filter(
+            Detection.screenshot_timestamp == screenshot.timestamp
+        ).all()[0]
+    human_counts = []
+    errors = [] 
+    for d in detections:
+        human_count = d.get_screenshot().human_count
+        error = d.error()
+        if human_count and error:
+            human_counts.append(human_count)        
+            errors.append(abs(error))
+    model_error = sum(errors) / sum(human_counts)
+    error_count = detection.count * model_error
+    error_range = (int(detection.count - error_count), int(detection.count + error_count)) 
+    return render_template(
+        "home.html", heatmap=heatmap, screenshot=screenshot, detection=detection, error_range=error_range
+    )
+
+
+@bp.route("/screenshots", methods=["GET", "POST"])
+def screenshots():
+    query = Screenshot.query
+    records = query.all()
+    reviewed_records = query.filter(Screenshot.reviewed).all()
+    invalid_records = query.filter(Screenshot.human_mode == "invalid").all()
+    surf_records = query.filter(Screenshot.human_mode == "surf").all()
+    count = len(records)
+    reviewed_count = len(reviewed_records)
+    invalid_count = len(invalid_records)
+    surf_count = len(surf_records)
+    stats = {
+        "count": count,
+        "reviewed_count": reviewed_count,
+        "invalid_count": invalid_count,
+        "surf_count": surf_count,
     }
-    return jsonify(data)
-
-
-
-@bp.route("/create/screenshot", methods=["GET","POST"])
-def create_screenshot():
-    screenshot = models.Screenshot(
-        datetime.datetime.strptime("2023-08-14 10:03:30.744708", "%Y-%m-%d %H:%M:%S.%f"),
-        "/images/wave/2023-08-14 10:03:30.744708.png",
-        4,
-        6
+    record_filter = request.args.get("filter")
+    show_button = True
+    if record_filter == "untested":
+        records = Screenshot.query.filter(Screenshot.reviewed != True).all()
+        show_button = False
+    elif record_filter == "invalid":
+        records = invalid_records
+    else:
+        records = surf_records
+    return render_template(
+        "screenshots.html", screenshots=records, stats=stats, show_button=show_button
     )
-    db.session.add(screenshot)
-    db.session.commit()
-    return "True"
 
 
-@bp.route("/count/screenshots", methods=["GET","POST"])
-def count_screenshots():
-    count = len(models.Screenshot.query.all())
-    return jsonify({"count": count})
+@bp.route("/screenshots/<timestamp>", methods=["GET", "POST"])
+def screenshot(timestamp):
+    global request
+    screenshot = detector.get_screenshot(timestamp)
+    detections = screenshot.get_detections()
+    if request.form:
+        if request.form["human_count"].isnumeric():
+            screenshot.human_count = int(request.form["human_count"])
+        screenshot.human_mode = request.form["human_mode"]
+        screenshot.reviewed = True
+        db.session.commit()
+        screenshot = detector.get_screenshot(timestamp)
+        redirect_url = "/screenshots?filter=untested"
+        return redirect(redirect_url)
+    return render_template(
+        "screenshot.html", screenshot=screenshot, detections=detections
+    )
 
 
-@bp.route("/load/screenshots", methods=["GET","POST"])
+# @bp.route("/report/usage", methods=["GET"])
+# def wave_usage():
+#     query = db.session.query(Screenshot).filter(Screenshot.count > 0)
+#     df = pd.DataFrame([(i.timestamp, i.count, i.test_count) for i in query.all()])
+#     df.columns = ["timestamp", "count", "test_count"]
+#     df["dayofweek"] = df["timestamp"].apply(lambda x: x.dayofweek)
+#     df["hour"] = df["timestamp"].apply(lambda x: x.hour)
+#     df["diff"] = abs(df["test_count"] - df["count"])
+#     table = (
+#         df.groupby(["hour", "dayofweek"])
+#         .mean()
+#         .unstack()
+#         .fillna(0)[["count", "test_count"]]
+#         .to_html()
+#     )
+#     error = df["diff"].sum() / df["test_count"].sum()
+#     return render_template("usage.html", table=table, error=error)
+
+
+@bp.route("/report/export", methods=["GET"])
+def export():
+    query = db.session.query(Screenshot).filter(Screenshot.human_count)
+    df = pd.DataFrame(
+        [(i.timestamp, i.count, i.human_count, i.human_mode) for i in query.all()]
+    )
+    df.columns = ["timestamp", "count", "human_count", "human_mode"]
+    df.to_csv("export.csv")
+    return "Export successful"
+
+
+@bp.route("/screenshots/import", methods=["GET", "POST"])
 def load_screenshots():
-    files = [i for i in report.WasabiStore().list_files("images/wave") if ":" in i]
-    data = []
-    for key in files[:10]:
-        detections = report.process_image(key)
-        timestamp = datetime.datetime.strptime(
-            key.split("/")[-1].replace(".png", ""),
-            "%Y-%m-%d %H:%M:%S.%f"
-        )
-        check_record = db.session.query(models.Screenshot).get(timestamp) 
-        if  check_record is None:
-            count = detections["count"]
-            test_count = 0
-            screenshot = models.Screenshot(
-                timestamp,
-                key,
-                count,
-                test_count
-            )
+    global request
+    df = pd.read_csv("export.csv")
+    img_dir = "images/wave"
+    files = [
+        i
+        for i in detector.ScreenshotStore().list_files(img_dir)
+        if ":" in i and "processed" not in i
+    ]
+    print(f"Loading {len(files)} images")
+    added = []
+    updated = []
+    for file in files:
+        key = file.split("/")[-1].replace(".png", "")
+        timestamp = datetime.datetime.strptime(key, "%Y-%m-%d %H:%M:%S.%f")
+        human_mode = None
+        if str(timestamp) in df["timestamp"].values:
+            reviewed = True
+            human_count = df.set_index("timestamp").loc[str(timestamp)]["test_count"]
+        else:
+            reviewed = False
+            human_count = None
+        check_record = db.session.query(Screenshot).get(timestamp)
+        url = file
+        if check_record is None:
+            screenshot = Screenshot(timestamp, url, human_count, human_mode, reviewed)
             db.session.add(screenshot)
             db.session.commit()
-            data.append(screenshot)
+            added.append(1)
+            print(f"added {key}")
         else:
-            print(f"{key} already in Database")
-    return f"Added {len(data)} screenshots"
+            check_record.url = url
+            check_record.human_count = human_count
+            check_record.reviewed = reviewed
+            db.session.commit()
+            updated.append(1)
+            print(f"updated {key}")
 
-# @bp.route("/get/screenshots", methods=["GET","POST"])
-# def get_screenshot():
-#     screenshots = models.Screenshot.query.all()
-#     import pdb
-#     pdb.set_trace()
-#     return jsonify(screenshots)
+    return f"Added {len(added)} screenshots. Updated {len(updated)} screenshots."
 
-# @bp.route("/add/screenshot", methods=["GET", "POST"])
-# def add_screenshot():
-#     models.create_screenshot()
-#     return jsonify({"result": True})  
 
-# screenshot = db.Screenshot(
-#     "2023-08-14 10:03:30.744708",
-#     "/images/wave/2023-08-14 10:03:30.744708.png"
-# )
+# @bp.route("/report/<site_id>", methods=["GET"])
+# def get_report(site_id):
+#     global request
+#     end_date = request.args.get("end_date", default=datetime.date.today())
+
+#     start_date = request.args.get(
+#         "start_date", default=end_date - relativedelta(days=7)
+#     )
+#     info = report.getInfo(site_id)
+#     timeline = report.getTimeline(site_id, start_date, end_date).to_json()
+#     weekly_delta = report.getDelta(site_id, end_date, freq="w")
+#     monthly_delta = report.getDelta(site_id, end_date, freq="m")
+#     screenshot = report.getLatestScreenshot()
+#     process_img = report.process_image(screenshot)
+#     data = {
+#         "info": info,
+#         "screenshot": screenshot,
+#         "detections": process_img,
+#         "timeline": timeline,
+#         "delta": {"week": weekly_delta, "month": monthly_delta},
+#     }
+#     return jsonify(data)

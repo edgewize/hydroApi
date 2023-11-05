@@ -1,0 +1,10 @@
+@import "../../node_modules/@picocss/pico/scss/pico.scss";
+
+@media (min-width: 1000px) {
+    main {
+        .grid.sidebar {
+            grid-column-gap: 20px;
+            grid-template-columns: 14% auto;
+        }  
+    } 
+}

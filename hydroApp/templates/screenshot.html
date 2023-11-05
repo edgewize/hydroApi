@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<div>
+    <a href="/screenshots">Go Back</a>
+</div>
+<article>
+    <header>
+        <hgroup>
+            <h1>{{ screenshot.timestamp }}</h1>
+            <h2>{{ screenshot.timestamp.time() }}</h2>
+        </hgroup>
+    </header>
+    <div>            
+        <table>
+            <tr>
+                <th><b>Image</b></th>
+                <th><b>Detector</b></th>
+                <th><b>Count</b></th>
+                <th><b>Mode</b></th>
+                <th><b>Error</b></th>
+            </tr>
+            <tr>
+                <td><img src="https://edgewize.imgix.net/{{screenshot.url}}" alt="Original image" /></td>
+                <td>Human</td>
+                <td>{{screenshot.human_count}}</td>
+                <td>{{screenshot.human_mode}}</td>
+                <td></td>
+            </tr>
+            {% for detection in detections %}
+            <tr>
+                <td><img src="https://edgewize.imgix.net/{{detection.imgsrc()}}" alt="{{detection.model}} processed image"></td>
+                <td>{{detection.model}}</td>
+                <td>{{detection.count}}</td>
+                <td></td>
+                <td>{{detection.error()}}</td>
+            </tr>                
+            {% endfor %}
+        </table>
+    </div>
+    <footer>
+        <form action="/screenshots/{{screenshot.url_timestamp()}}" method="POST">
+            <div class="grid">
+                <div><input type="text" name="human_count" placeholder="Edit human count ({{screenshot.human_count}})"></div>
+                <div>
+                    <select name="human_mode" id="human_mode">
+                        <option value="">-- Edit mode --</option>
+                        <option value="surf">Surf</option>
+                        <option value="kayak">Kayak</option>
+                        <option value="invalid">Invalid</option>
+                    </select>
+                </div>
+            </div>
+
+            <input type="hidden" name="timestamp" autofocus="autofocus" value="{{screenshot.timestamp}}"/>
+            <button type="submit">Submit</button>
+        </form>
+    </footer>
+</article>
+{% endblock %}

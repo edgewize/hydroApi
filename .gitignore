@@ -2,6 +2,9 @@
 .vscode
 mask.xcf
 env
+wslenv
 instance
 *__pycache__
 *.ipynb
+node_modules
+*.csv

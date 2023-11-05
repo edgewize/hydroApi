@@ -7,4 +7,3 @@ instance
 *__pycache__
 *.ipynb
 node_modules
-*.csv

@@ -117,10 +117,10 @@ def screenshot(timestamp):
 def export():
     query = db.session.query(Screenshot).filter(Screenshot.human_count)
     df = pd.DataFrame(
-        [(i.timestamp, i.count, i.human_count, i.human_mode) for i in query.all()]
+        [(i.timestamp, i.url, i.human_count, i.human_mode, i.reviewed) for i in query.all()]
     )
-    df.columns = ["timestamp", "count", "human_count", "human_mode"]
-    df.to_csv("export.csv")
+    df.columns = ["timestamp", "url", "human_count", "human_mode", "reviewed"]
+    df.to_csv("screenshots.csv")
     return "Export successful"
 
 

@@ -97,7 +97,9 @@ class Screenshot(db.Model):
 
 
 if __name__ == "__main__":
-    from run import appp
+    from run import app
+    import pandas as pd    
+    import hydroApp.detector as detector
 
     # Run this file directly to create the database tables.
     print("Creating database tables...")
@@ -105,3 +107,11 @@ if __name__ == "__main__":
         db.drop_all()
         db.create_all()
     print("Tables created")
+
+    print("Processing Images")
+    data = pd.read_csv("screenshots.csv")
+    screenshot_detector = detector.Detector("alpha", detector.alpha_detector)
+    for index, row in data.iterrows():
+        screenshot = detector.create_screenshot(row["timestamp"], row["url"], row["human_count"], row["human_mode"], row["reviewed"])
+        detection = screenshot.process(screenshot_detector)
+        print(f"{screenshot_detector.name} detected {detection.count} objects in {screenshot.timestamp}")

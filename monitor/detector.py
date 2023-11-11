@@ -12,6 +12,7 @@ from PIL import Image
 from django.utils import timezone
 import pytz
 
+
 def visualize_detections(image, detections) -> np.ndarray:
     """Draws bounding boxes on the input image and return it.
     Args:
@@ -43,6 +44,7 @@ def visualize_detections(image, detections) -> np.ndarray:
         #             FONT_SIZE, TEXT_COLOR, FONT_THICKNESS)
     return image
 
+
 def detect_objects(img, options=None):
     BaseOptions = mp.tasks.BaseOptions
     ObjectDetector = mp.tasks.vision.ObjectDetector
@@ -65,15 +67,17 @@ def detect_objects(img, options=None):
 
     return detection_result
 
-class ScreenshotStore():
+
+class ScreenshotStore:
     def __init__(self):
         load_dotenv()
-        s3 = boto3.resource('s3',
-            endpoint_url = 'https://s3.us-west-1.wasabisys.com',
-            aws_access_key_id =  os.getenv("WASABI_ACCESS"),
-            aws_secret_access_key =  os.getenv("WASABI_SECRET")
+        s3 = boto3.resource(
+            "s3",
+            endpoint_url="https://s3.us-west-1.wasabisys.com",
+            aws_access_key_id=os.getenv("WASABI_ACCESS"),
+            aws_secret_access_key=os.getenv("WASABI_SECRET"),
         )
-        self.bucket = s3.Bucket('edginton-portfolio')
+        self.bucket = s3.Bucket("edginton-portfolio")
         self.imgcdn = "https://edgewize.imgix.net"
 
     def upload(self, img, save_path):
@@ -91,16 +95,21 @@ class ScreenshotStore():
     def list_files(self, path):
         return [i.key for i in self.bucket.objects.filter(Prefix=path)]
 
-    def get_latest_screenshot(self):
+    def get_latest_timestamp(self):
         files = self.list_files("images/wave/")
-        date_files = [i.split("/")[-1].replace(".png", "") for i in files if ":" in i]
-        datetimes = [datetime.datetime.strptime(i, "%Y-%m-%d %H:%M:%S.%f") for i in date_files]
+        date_files = [
+            i.split("/")[-1].replace(".png", "").replace("_", " ")
+            for i in files
+            if ":" in i
+        ]
+        datetimes = [str_to_datetime(i) for i in date_files]
         max_date = max(datetimes)
-        latest_file = [i for i in files if str(max_date) in i]
-        return latest_file[0]
+        # latest_file = [i for i in files if str(max_date) in i]s
+        return max_date
 
     def imgcdn_src(self, path):
         return self.imgcdn + path
+
 
 class Detector(object):
     def __init__(self, name, detect_function):
@@ -109,14 +118,16 @@ class Detector(object):
         self.detect_function = detect_function
 
     def detect(self, screenshot):
-        image = self.storage.get_image(screenshot.url)
+        image = self.storage.get_image(screenshot.imgpath)
         detections = self.detect_function(image)
         annotated_image = visualize_detections(image, detections)
         rgb_annotated_image = cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)
         self.storage.upload(
-            rgb_annotated_image, f"images/wave/{self.name}/{screenshot.url_timestamp}.png"
+            rgb_annotated_image,
+            f"images/wave/{self.name}/{screenshot.url_timestamp}.png",
         )
         return detections
+
 
 def alpha_detector(image):
     # Mask the image so we only look in the surf line
@@ -136,29 +147,45 @@ def alpha_detector(image):
     ]
     return filtered_detections
 
+
 def update_detection(detection, count):
     detection.count = count
     detection.save()
     return detection
 
+
 def str_to_datetime(date_str):
     timezone.now()
-    d = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f", )
-    tz_aware_date = datetime.datetime(d.year, d.month, d.day, d.hour, d.minute, d.second, tzinfo=pytz.UTC) 
+    d = datetime.datetime.strptime(
+        date_str,
+        "%Y-%m-%d %H:%M:%S.%f",
+    )
+    tz_aware_date = datetime.datetime(
+        d.year,
+        d.month,
+        d.day,
+        d.hour,
+        d.minute,
+        d.second,
+        d.microsecond,
+        tzinfo=pytz.UTC,
+    )
     return tz_aware_date
 
-def get_screenshot(timestamp:str)->str:
+
+def get_screenshot(timestamp: str) -> str:
     if "_" in timestamp:
-        timestamp = timestamp.replace("_"," ")
+        timestamp = timestamp.replace("_", " ")
     record = Screenshot.objects.get(pk=str_to_datetime(timestamp))
     return record
+
 
 def transform_heatmap(detections):
     df = pd.DataFrame(
         [{"timestamp": i.timestamp, "count": i.count} for i in detections]
     )
-    df["weekday"] = df["timestamp"].apply(lambda x:  x.date().weekday())
-    df["hour"] = df["timestamp"].apply(lambda x:  x.time().hour)
+    df["weekday"] = df["timestamp"].apply(lambda x: x.date().weekday())
+    df["hour"] = df["timestamp"].apply(lambda x: x.time().hour)
     weekdays = list(df["weekday"].sort_values().unique())
     hours = list(df["hour"].sort_values().unique())
     transform = df.groupby([df["hour"], df["weekday"]]).mean()["count"].reset_index()

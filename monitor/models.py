@@ -23,10 +23,12 @@ class Detection(models.Model):
         return str(self.timestamp.strftime( "%Y-%m-%d %H:%M:%S.%f")).replace(" ", "_") 
 
     @property
+    def imgpath(self):
+        return f"images/wave/{self.model}/{self.url_timestamp}.png"
+
+    @property
     def imgsrc(self):
-        return detector.ScreenshotStore().imgcdn_src(
-            f"/images/wave/{self.model}/{self.url_timestamp}.png"
-        )
+        return detector.ScreenshotStore().imgcdn_src("/"+self.imgpath)
 
     def get_screenshot(self):
         return Screenshot.objects.filter(timestamp=self.timestamp)[0]
@@ -52,8 +54,12 @@ class Screenshot(models.Model):
         return str(self.timestamp.strftime( "%Y-%m-%d %H:%M:%S.%f")).replace(" ", "_")
 
     @property
+    def imgpath(self):
+        return f"images/wave/{self.url_timestamp.replace('_', ' ')}.png"
+
+    @property
     def imgsrc(self):
-        return detector.ScreenshotStore().imgcdn_src(f"/images/wave/{self.url_timestamp}.png")
+        return detector.ScreenshotStore().imgcdn_src("/"+self.imgpath)
 
     def get_detections(self, model=None):
         detection_count = Detection.objects.count()

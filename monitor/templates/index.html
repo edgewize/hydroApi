@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% with title="Boise Wave Usage Monitor" %}{% endwith %}
+{% block content %}
+<hgroup>
+  <h1>Boise Wave Monitor</h1>
+  <p>Tracking <a href="https://www.boisewhitewaterpark.com/" target="_blank">Boise Whitewater Park</a> usage with computer vision.</p>
+</hgroup>
+<article>
+  <header>Detected <b>{{detection.count}} people</b> using the wave at <b>{{screenshot.timestamp.hour}}:{{screenshot.timestamp.minute}}</b> on <b>{{screenshot.timestamp.date}}</b></header>
+  <div class="grid">
+    <div>
+      <a href="/screenshots/{{ screenshot.url_timestamp }}"><img src="{{ detection.imgsrc }}?width=951" width="951" height="535"/></a>
+    </div>
+    <div>
+      <p>
+        <kbd>{{ detection.usage_rating | title }} usage</kbd>
+      </p>
+      <progress value="{{ detection.count }}" max="15"></progress>
+      <table>
+        <tr>
+          <th><b>Error*</b></th>
+          <th><b>Mode</b></th>
+        </tr>
+        <tr>
+          <td>{{ error_range.low }} - {{ error_range.high }}</td>
+          <td>Surf</td>
+        </tr>
+      </table>
+    </div>   
+  </div>
+  <footer>
+    <small>*Error is adjusted based on computer vision accuracy.</small>
+  </footer>
+</article>
+{% endblock %}

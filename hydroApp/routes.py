@@ -15,19 +15,20 @@ bp = Blueprint("main", __name__)
 @bp.route("/")
 def home():
     detection_model = "alpha"
+
     screenshot_detector = detector.Detector(detection_model, detector.alpha_detector)
-    detections = Detection.query.filter(Detection.model == detection_model).all()
+    detections = Detection(model=detection_model).objects
     heatmap = detector.transform_heatmap(detections)      
     screenshot = max(
-        Screenshot.query.filter(Screenshot.human_mode == "surf").all(),
+        screenshot(human_mode="surf").objects,
         key=lambda x: x.timestamp,
     )
-    if len(screenshot.get_detections().all()) == 0:
+    if len(screenshot.get_detections()) == 0:
         detection = screenshot.process(screenshot_detector)
     else:
-        detection = Detection.query.filter(
-            Detection.screenshot_timestamp == screenshot.timestamp
-        ).all()[0]
+        detection = Detection(
+            Detection.timestamp == screenshot.timestamp
+        ).objects[0]
     human_counts = []
     errors = [] 
     for d in detections:
@@ -92,25 +93,6 @@ def screenshot(timestamp):
     return render_template(
         "screenshot.html", screenshot=screenshot, detections=detections
     )
-
-
-# @bp.route("/report/usage", methods=["GET"])
-# def wave_usage():
-#     query = db.session.query(Screenshot).filter(Screenshot.count > 0)
-#     df = pd.DataFrame([(i.timestamp, i.count, i.test_count) for i in query.all()])
-#     df.columns = ["timestamp", "count", "test_count"]
-#     df["dayofweek"] = df["timestamp"].apply(lambda x: x.dayofweek)
-#     df["hour"] = df["timestamp"].apply(lambda x: x.hour)
-#     df["diff"] = abs(df["test_count"] - df["count"])
-#     table = (
-#         df.groupby(["hour", "dayofweek"])
-#         .mean()
-#         .unstack()
-#         .fillna(0)[["count", "test_count"]]
-#         .to_html()
-#     )
-#     error = df["diff"].sum() / df["test_count"].sum()
-#     return render_template("usage.html", table=table, error=error)
 
 
 @bp.route("/report/export", methods=["GET"])

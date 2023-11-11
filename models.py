@@ -7,20 +7,22 @@ class Detection(db.Model):
     __tablename__ = "detections"
     __table_args__ = {"extend_existing": True}
     id = db.Column("id", db.Integer, primary_key=True, autoincrement=True)
-    screenshot_timestamp = db.Column("screenshot_timestamp", db.DateTime)
+    timestamp = db.Column("timestamp", db.DateTime)
     model = db.Column("model", db.String(100))
     count = db.Column("count", db.Integer)
 
-    def __init__(self, screenshot_timestamp: str, model: str, count: int):
-        self.screenshot_timestamp = screenshot_timestamp
+    def __init__(self, timestamp: str, model: str, count: int):
+        self.timestamp = timestamp
         self.model = model
         self.count = count
 
     def get_screenshot(self):
-        return Screenshot.query.filter(Screenshot.timestamp == self.screenshot_timestamp).first()
+        return Screenshot.objects.get(
+            timestamp=self.timestamp
+        ).first()
 
     def error(self):
-        screenshot = Screenshot.query.get(self.screenshot_timestamp)
+        screenshot = Screenshot.objects.get(timestamp=self.timestamp)
         if type(screenshot.human_count) == int and type(self.count) == int:
             error = screenshot.human_count - self.count
         else:
@@ -36,9 +38,10 @@ class Detection(db.Model):
             usage = "low"
         return usage
 
-
     def imgsrc(self):
-        return detector.ScreenshotStore().imgcdn_src(f"/images/wave/{self.model}/{self.screenshot_timestamp}.png")
+        return detector.ScreenshotStore().imgcdn_src(
+            f"/images/wave/{self.model}/{self.timestamp}.png"
+        )
 
 
 class Screenshot(db.Model):
@@ -66,41 +69,35 @@ class Screenshot(db.Model):
 
     def get_detections(self, model=None):
         if model:
-            detections = Detection.query.filter(
-                self.timestamp == Detection.screenshot_timestamp
-                and model == Detection.model
-            )
+            detections = Detection(timestamp=self.timestamp, model=model)
         else:
-            detections = Detection.query.filter(
-                self.timestamp == Detection.screenshot_timestamp
-            )
-        return detections
+            detections = Detection(timestamp=self.timestamp)
+        return detections.objects
 
     def url_timestamp(self):
         return str(self.timestamp).replace(" ", "_")
 
     def imgsrc(self):
-        return detector.ScreenshotStore().imgcdn_src(f"/images/wave/{self.timestamp}.png")
+        return detector.ScreenshotStore().imgcdn_src(
+            f"/images/wave/{self.timestamp}.png"
+        )
 
     def process(self, screenshot_detector, update=False):
-        detections = self.get_detections(model=screenshot_detector.name).all()
+        detections = self.get_detections(model=screenshot_detector.name)
         detection_count = len(screenshot_detector.detect(self))
-        if len(detections) > 0 and update:
-            result = detector.update_detection(detections, detection_count)
+        if len(detections) == 0 and update:
+            detection = detections.objects[0]
+            detection.count = detection_count
         else:
-            result = detector.create_detection(
-                self.timestamp, screenshot_detector.name, detection_count
-            )
-        return result
-        # detections = self.get_detections(model=scr.name).all()
-        # return detections
+            detection = Detection(timestamp=self.timestamp, model=screenshot_detector.name, count=detection_count)
+        detection.save()
+        return detection
 
 
 if __name__ == "__main__":
     from run import app
     import pandas as pd
 
-    # Run this file directly to create the database tables.
     print("Creating database tables...")
     with app.app_context():
         db.drop_all()
@@ -112,6 +109,15 @@ if __name__ == "__main__":
         screenshot_detector = detector.Detector("alpha", detector.alpha_detector)
         for index, row in data.iterrows():
             timestamp = detector.str_to_datetime(row["timestamp"])
-            screenshot = detector.create_screenshot(timestamp, row["url"], row["human_count"], row["human_mode"], row["reviewed"])
+            screenshot = Screenshot(
+                timestamp,
+                row["url"],
+                row["human_count"],
+                row["human_mode"],
+                row["reviewed"],
+            )
+            screenshot.save()
             detection = screenshot.process(screenshot_detector)
-            print(f"{screenshot_detector.name} detected {detection.count} objects in {screenshot.timestamp}")
+            print(
+                f"{screenshot_detector.name} detected {detection.count} objects in {screenshot.timestamp}"
+            )

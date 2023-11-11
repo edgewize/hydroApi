@@ -7,3 +7,11 @@ instance
 *__pycache__
 *.ipynb
 node_modules
+
+# Django #
+*.log
+*.pot
+*.pyc
+__pycache__
+db.sqlite3
+media

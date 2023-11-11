@@ -9,9 +9,8 @@ import mediapipe as mp
 from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 from PIL import Image
-
-from hydroApp import db
-from models import Detection, Screenshot
+from django.utils import timezone
+import pytz
 
 def visualize_detections(image, detections) -> np.ndarray:
     """Draws bounding boxes on the input image and return it.
@@ -115,14 +114,14 @@ class Detector(object):
         annotated_image = visualize_detections(image, detections)
         rgb_annotated_image = cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)
         self.storage.upload(
-            rgb_annotated_image, f"images/wave/{self.name}/{screenshot.timestamp}.png"
+            rgb_annotated_image, f"images/wave/{self.name}/{screenshot.url_timestamp}.png"
         )
         return detections
 
 def alpha_detector(image):
     # Mask the image so we only look in the surf line
-    img_bg = Image.open("img/bg.png")
-    img_mask = Image.open("img/mask.png").convert("L")
+    img_bg = Image.open("static/img/bg.png")
+    img_mask = Image.open("static/img/mask.png").convert("L")
     composite = Image.composite(image, img_bg, img_mask)
     # Use mediapipe (mp) images for image detection and annotation
     image = mp.Image(image_format=mp.ImageFormat.SRGBA, data=np.asarray(composite))
@@ -131,45 +130,32 @@ def alpha_detector(image):
     filtered_detections = [
         i
         for i in detection_result.detections
-        # if i.categories[0].category_name == "person"
         if i.bounding_box.width < 20
         and i.bounding_box.width > 10
         and i.bounding_box.height < 40
     ]
     return filtered_detections
 
-def create_screenshot(
-    timestamp: datetime.datetime.timestamp, url: str, human_count: int, human_mode:str, reviewed: bool
-) -> str:
-    screenshot = Screenshot(timestamp, url, human_count, human_mode, reviewed)
-    db.session.add(screenshot)
-    db.session.commit()
-    return screenshot
-
-def create_detection(timestamp, name, count):
-    detection = Detection(timestamp, name, count)
-    db.session.add(detection)
-    db.session.commit()
-    return detection
-
 def update_detection(detection, count):
     detection.count = count
-    db.session.add(detection)
-    db.commit()
+    detection.save()
     return detection
 
 def str_to_datetime(date_str):
-    return datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
+    timezone.now()
+    d = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f", )
+    tz_aware_date = datetime.datetime(d.year, d.month, d.day, d.hour, d.minute, d.second, tzinfo=pytz.UTC) 
+    return tz_aware_date
 
 def get_screenshot(timestamp:str)->str:
     if "_" in timestamp:
         timestamp = timestamp.replace("_"," ")
-    record = Screenshot.query.get(str_to_datetime(timestamp))
+    record = Screenshot.objects.get(pk=str_to_datetime(timestamp))
     return record
 
 def transform_heatmap(detections):
     df = pd.DataFrame(
-        [{"timestamp": i.screenshot_timestamp, "count": i.count} for i in detections]
+        [{"timestamp": i.timestamp, "count": i.count} for i in detections]
     )
     df["weekday"] = df["timestamp"].apply(lambda x:  x.date().weekday())
     df["hour"] = df["timestamp"].apply(lambda x:  x.time().hour)

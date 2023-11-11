@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-ff91k&%bx_68wsn=553ilh&0!zzc7rli!7-znj@1@lzcw5t+%n
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "edgewize.pythonanywhere.com/"
+    "edgewize.pythonanywhere.com"
 ]
 
 
@@ -121,7 +121,6 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [
     BASE_DIR / "static",
-    "/var/www/static/",
 ]
 
 # Default primary key field type

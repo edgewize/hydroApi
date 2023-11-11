@@ -26,7 +26,7 @@ SECRET_KEY = "django-insecure-ff91k&%bx_68wsn=553ilh&0!zzc7rli!7-znj@1@lzcw5t+%n
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "https://edgewize.pythonanywhere.com/"
+    "edgewize.pythonanywhere.com/"
 ]
 
 

@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from PIL import Image
 from django.utils import timezone
 import pytz
-
+from django.db import models
 
 def visualize_detections(image, detections) -> np.ndarray:
     """Draws bounding boxes on the input image and return it.
@@ -42,6 +42,7 @@ def visualize_detections(image, detections) -> np.ndarray:
         #                 MARGIN + ROW_SIZE + bbox.origin_y)
         # cv2.putText(image, result_text, text_location, cv2.FONT_HERSHEY_PLAIN,
         #             FONT_SIZE, TEXT_COLOR, FONT_THICKNESS)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     return image
 
 
@@ -95,38 +96,20 @@ class ScreenshotStore:
     def list_files(self, path):
         return [i.key for i in self.bucket.objects.filter(Prefix=path)]
 
-    def get_latest_timestamp(self):
+    def get_latest_timestamp(self)->datetime.datetime:
         files = self.list_files("images/wave/")
+        # transform file paths and filter timestamp imgs from the base directory
         date_files = [
             i.split("/")[-1].replace(".png", "").replace("_", " ")
             for i in files
-            if ":" in i
+            if ":" in i and len(i.split("/")) <= 3
         ]
         datetimes = [str_to_datetime(i) for i in date_files]
         max_date = max(datetimes)
-        # latest_file = [i for i in files if str(max_date) in i]s
         return max_date
 
     def imgcdn_src(self, path):
         return self.imgcdn + path
-
-
-class Detector(object):
-    def __init__(self, name, detect_function):
-        self.name = name
-        self.storage = ScreenshotStore()
-        self.detect_function = detect_function
-
-    def detect(self, screenshot):
-        image = self.storage.get_image(screenshot.imgpath)
-        detections = self.detect_function(image)
-        annotated_image = visualize_detections(image, detections)
-        rgb_annotated_image = cv2.cvtColor(annotated_image, cv2.COLOR_BGR2RGB)
-        self.storage.upload(
-            rgb_annotated_image,
-            f"images/wave/{self.name}/{screenshot.url_timestamp}.png",
-        )
-        return detections
 
 
 def alpha_detector(image):

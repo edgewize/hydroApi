@@ -12,39 +12,6 @@ from models import Screenshot, Detection
 bp = Blueprint("main", __name__)
 
 
-@bp.route("/")
-def home():
-    detection_model = "alpha"
-
-    screenshot_detector = detector.Detector(detection_model, detector.alpha_detector)
-    detections = Detection(model=detection_model).objects
-    heatmap = detector.transform_heatmap(detections)      
-    screenshot = max(
-        screenshot(human_mode="surf").objects,
-        key=lambda x: x.timestamp,
-    )
-    if len(screenshot.get_detections()) == 0:
-        detection = screenshot.process(screenshot_detector)
-    else:
-        detection = Detection(
-            Detection.timestamp == screenshot.timestamp
-        ).objects[0]
-    human_counts = []
-    errors = [] 
-    for d in detections:
-        human_count = d.get_screenshot().human_count
-        error = d.error()
-        if human_count and error:
-            human_counts.append(human_count)        
-            errors.append(abs(error))
-    model_error = sum(errors) / sum(human_counts)
-    error_count = detection.count * model_error
-    error_range = (int(detection.count - error_count), int(detection.count + error_count)) 
-    return render_template(
-        "home.html", heatmap=heatmap, screenshot=screenshot, detection=detection, error_range=error_range
-    )
-
-
 @bp.route("/screenshots", methods=["GET", "POST"])
 def screenshots():
     query = Screenshot.query

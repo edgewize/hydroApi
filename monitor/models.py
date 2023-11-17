@@ -1,22 +1,11 @@
 from django.db import models
-import monitor.detector as detector
-
+import monitor.utils as utils
 
 class Detection(models.Model):
     id =  models.AutoField(primary_key=True)
     model = models.CharField(max_length=99)
     timestamp = models.DateTimeField()
     count = models.IntegerField()
-
-    @property
-    def usage_rating(self):
-        if self.count > 12:
-            usage = "high"
-        elif self.count > 5:
-            usage = "medium"
-        else:
-            usage = "low"
-        return usage
 
     @property
     def url_timestamp(self):
@@ -28,26 +17,42 @@ class Detection(models.Model):
 
     @property
     def imgsrc(self):
-        return detector.ScreenshotStore().imgcdn_src("/"+self.imgpath)
+        return utils.ScreenshotStore().imgcdn_src("/"+self.imgpath)
 
-    def get_screenshot(self):
-        return Screenshot.objects.filter(timestamp=self.timestamp)[0]
-
-    def error(self):
-        screenshot = Screenshot.objects.filter(timestamp=self.timestamp)[0]
-        if type(screenshot.human_count) == int and type(self.count) == int:
-            error = screenshot.human_count - self.count
+    @property
+    def usage_rating(self):
+        if self.count > 12:
+            usage = "high"
+        elif self.count > 5:
+            usage = "medium"
         else:
-            error = None
+            usage = "low"
+        return usage
+    
+    def get_screenshot(self):
+        screenshots = Screenshot.objects.filter(timestamp=self.timestamp)
+        if screenshots.count() == 0:
+            screenshot = None
+        else:
+            screenshot = screenshots[0]
+        return screenshot
+ 
+    def error(self):
+        screenshot = self.get_screenshot()
+        if screenshot:
+            if type(screenshot.human_count) == int and type(self.count) == int:
+                error = screenshot.human_count - self.count
+            else:
+                error = None
         return error
 
 
 class Screenshot(models.Model):
     timestamp = models.DateTimeField(primary_key=True)
-    url = models.CharField(max_length=99)
-    human_count = models.IntegerField()
-    human_mode = models.CharField(max_length=9)
-    reviewed = models.BooleanField()
+    url = models.CharField(max_length=99, null=True)
+    human_count = models.IntegerField(null=True)
+    human_mode = models.CharField(max_length=9, null=True)
+    reviewed = models.BooleanField(null=True)
     
     @property
     def url_timestamp(self):
@@ -59,23 +64,23 @@ class Screenshot(models.Model):
 
     @property
     def imgsrc(self):
-        return detector.ScreenshotStore().imgcdn_src("/"+self.imgpath)
+        return utils.ScreenshotStore().imgcdn_src("/"+self.imgpath)
 
     def get_detections(self, model=None):
-        detection_count = Detection.objects.count()
-        if detection_count > 0:
+        if model:
             detections = Detection.objects.filter(timestamp=self.timestamp, model=model)
-        if detection_count == 0 or detections.count() == 0:
-            detections = None
+        else:
+            detections = Detection.objects.filter(timestamp=self.timestamp) 
         return detections 
         
-    def process(self, screenshot_detector, update=False):
-        detections = self.get_detections(model=screenshot_detector.name)
-        detection_count = len(screenshot_detector.detect(self))
-        if detections and update:
-            detection = detections[0]
-            detection.count = detection_count 
-        else:
-            detection = Detection(timestamp=self.timestamp, model=screenshot_detector.name, count=detection_count)
-        detection.save()
-        return detection
+    # use utils.detect() instead
+    # def process(self, screenshot_detector, update=False):
+    #     detections = self.get_detections(model=screenshot_utils.name)
+    #     detection_count = len(screenshot_utils.detect(self))
+    #     if detections and update:
+    #         detection = detections[0]
+    #         detection.count = detection_count 
+    #     else:
+    #         detection = Detection(timestamp=self.timestamp, model=screenshot_utils.name, count=detection_count)
+    #     detection.save()
+    #     return detection

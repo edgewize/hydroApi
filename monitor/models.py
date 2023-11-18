@@ -77,19 +77,6 @@ class Screenshot(models.Model):
             detections = Detection.objects.filter(timestamp=self.timestamp)
         return detections
 
-    # use utils.detect() instead
-    # def process(self, screenshot_detector, update=False):
-    #     detections = self.get_detections(model=screenshot_utils.name)
-    #     detection_count = len(screenshot_utils.detect(self))
-    #     if detections and update:
-    #         detection = detections[0]
-    #         detection.count = detection_count
-    #     else:
-    #         detection = Detection(timestamp=self.timestamp, model=screenshot_utils.name, count=detection_count)
-    #     detection.save()
-    #     return detection
-
-
 class Detector(object):
     def __init__(self, name, detect_function):
         self.name = name

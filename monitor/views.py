@@ -2,8 +2,6 @@ from django.shortcuts import render
 from django.http import HttpResponse
 from datetime import datetime, timedelta
 from django.utils import timezone
-
-# Create your views here.
 import pandas as pd
 import monitor.utils as utils
 from monitor.models import Screenshot, Detection, Detector
@@ -24,6 +22,12 @@ def index(request):
         "timeline": timeline
     }
     return render(request, "index.html", context)
+
+def screenshots(request):
+    print("ping")
+
+def screenshot(request):
+    import pdb; pdb.set_trace()
 
 def load(request):
     Screenshot.objects.all().delete()

@@ -6,11 +6,21 @@
   <p>Tracking <a href="https://www.boisewhitewaterpark.com/" target="_blank">Boise Whitewater Park</a> usage with computer vision.</p>
 </hgroup>
 <article>
-  <header>Detected <b>{{detection.count}} people</b> using the wave at <b>{{screenshot.timestamp.hour}}:{{screenshot.timestamp.minute}}</b> on <b>{{screenshot.timestamp.date}}</b></header>
-  <p>
-      <!-- <a href="/screenshots/{{ screenshot.url_timestamp }}"><img src="{{ detection.imgsrc }}?width=951" width="951" height="535"/></a> -->
-      <img src="{{ detection.imgsrc }}?width=951" width="951" height="535"/>
-  </p>
+  <header>
+    <hgroup>
+      <h2>Usage Timeline</h2>
+      {{ timeline | safe }}
+    </hgroup>
+  </header>
+  <hgroup>
+    <h2>
+      Latest Sample
+    </h2>
+    <p>Detected <b>{{detection.count}} people</b> using the wave at <b>{{screenshot.timestamp.hour}}:{{screenshot.timestamp.minute}}</b> on <b>{{screenshot.timestamp.date}}</b></p>
+    <p>
+  </hgroup>
+  <!-- <a href="/screenshots/{{ screenshot.url_timestamp }}"><img src="{{ detection.imgsrc }}?width=951" width="951" height="535"/></a> -->
+  <p><img src="{{ detection.imgsrc }}?width=951" width="951" height="535"/></p></p>
   <div class="grid">
     <div>
       <p><kbd>{{ detection.usage_rating | title }} usage</kbd></p>
@@ -30,32 +40,20 @@
       <small>*Error adjusted based on computer vision accuracy.</small>
     </div>   
   </div>
-  <footer>
-    <div id="timeline"></div>
-  </footer>
+  <!-- <footer></footer> -->
 </article>
 <script>
-  // Continually reload page if we have a reload parameter.
-  // Reload is the number of MS between reloads. 
   const continualReload = (reload_ms) => {
     setTimeout(function() {
-        updateDashboard(start_date)
-        continualReload(reload_ms)        
+        location.reload()
+        continualReload(reload_ms)
     }, reload_ms);
   }
-
   const url_params = new URLSearchParams(location.search);
-  // const reload_ms = url_params.get('reload');
-  const reload_ms = 3600
+  const reload_ms = url_params.get('reload');
   if (reload_ms) {
     continualReload(reload_ms)
   }
-  var trace1 = {
-    x: {{ timeline.x }},
-    y: {{ timeline.y }},
-    type: 'scatter'
-  };
-  
-  Plotly.newPlot('timeline', [trace1]);
+
 </script>
 {% endblock %}

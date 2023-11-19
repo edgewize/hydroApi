@@ -32,15 +32,8 @@ class Detection(models.Model):
         else:
             usage = "low"
         return usage
-
-    def get_screenshot(self):
-        screenshots = Screenshot.objects.filter(timestamp=self.timestamp)
-        if screenshots.count() == 0:
-            screenshot = None
-        else:
-            screenshot = screenshots[0]
-        return screenshot
-
+    
+    @property
     def error(self):
         screenshot = self.get_screenshot()
         if screenshot:
@@ -49,6 +42,15 @@ class Detection(models.Model):
             else:
                 error = None
         return error
+
+    def get_screenshot(self):
+        screenshots = Screenshot.objects.filter(timestamp=self.timestamp)
+        if screenshots.count() == 0:
+            screenshot = None
+        else:
+            screenshot = screenshots[0]
+        return screenshot
+        
 
 
 class Screenshot(models.Model):
@@ -76,7 +78,7 @@ class Screenshot(models.Model):
         else:
             detections = Detection.objects.filter(timestamp=self.timestamp)
         return detections
-
+    
 class Detector(object):
     def __init__(self, name, detect_function):
         self.name = name
@@ -141,7 +143,7 @@ class Detector(object):
             human_counts.append(human_count)
             detections = screenshot.get_detections()
             for detection in detections:
-                error = detection.error()
+                error = detection.error
                 errors.append((abs(error)))
         model_error = sum(errors) / sum(human_counts)
         return model_error
@@ -151,8 +153,8 @@ class Detector(object):
         returns set(low, high)
         """
         count = detection.count
-        error = self.error()
-        error_amount = count * error
+        error = self.error
+        error_amount = count * error()
         low = count - error_amount
         high = count + error_amount
         payload = (low, high)

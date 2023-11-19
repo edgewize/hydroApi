@@ -24,10 +24,53 @@ def index(request):
     return render(request, "index.html", context)
 
 def screenshots(request):
-    print("ping")
+    screenshots = Screenshot.objects.all().order_by("-timestamp")
+    review_count = Screenshot.objects.filter(reviewed=True).count()
+    context = {
+        "screenshots": screenshots,
+        "review_count": review_count
+    }
+    return render(request, "screenshots.html", context)
 
-def screenshot(request):
-    import pdb; pdb.set_trace()
+def screenshot(request, timestamp):
+    timestamp = utils.str_to_datetime(timestamp.replace("_"," "))
+    screenshots = Screenshot.objects.all()
+    for index, s in enumerate(screenshots):
+        if s.timestamp == timestamp:
+            screenshot = s
+            try:
+                prev_screenshot = screenshots[index-1]
+            except IndexError:
+                prev_screenshot = None
+            try:
+                next_screenshot = screenshots[index+1]
+            except IndexError:
+                next_screenshot = None
+            break
+        else:
+            screenshot = None
+    if screenshot:
+        detections = screenshot.get_detections()
+        if request.POST:
+            count = request.POST.get("human_count")
+            mode = request.POST.get("human_mode")
+            if count:
+                screenshot.human_count = count
+            if mode:
+                screenshot.human_mode = mode
+            if count or mode:
+                screenshot.reviewed = True
+            screenshot.save()
+            screenshot = Screenshot.objects.filter(timestamp=timestamp).first()
+    else:
+        detections = None
+    context = {
+        "screenshot": screenshot,
+        "detections": detections,
+        "prev_screenshot": prev_screenshot,
+        "next_screenshot": next_screenshot
+    }
+    return render(request, "screenshot.html", context)
 
 def load(request):
     Screenshot.objects.all().delete()

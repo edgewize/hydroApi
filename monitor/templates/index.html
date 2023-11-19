@@ -19,7 +19,7 @@
     <p>Detected <b>{{detection.count}} people</b> using the wave at <b>{{screenshot.timestamp.hour}}:{{screenshot.timestamp.minute}}</b> on <b>{{screenshot.timestamp.date}}</b></p>
     <p>
   </hgroup>
-  <p><a href="/screenshots/{{ screenshot.url_timestamp }}"><img src="{{ detection.imgsrc }}?width=951" width="951" height="535"/></a></p>
+  <p><a href="/screenshot/{{ screenshot.url_timestamp }}"><img src="{{ detection.imgsrc }}?width=951" width="951" height="535"/></a></p>
   <div class="grid">
     <div>
       <p><kbd>{{ detection.usage_rating | title }} usage</kbd></p>
@@ -32,7 +32,7 @@
           <th><b>Mode</b></th>
         </tr>
         <tr>
-          <td>{{ error.0 }} - {{ error.1 }}</td>
+          <td>{{ error.0 | floatformat }} - {{ error.1  | floatformat}}</td>
           <td>Surf</td>
         </tr>
       </table>
@@ -53,6 +53,5 @@
   if (reload_ms) {
     continualReload(reload_ms)
   }
-
 </script>
 {% endblock %}

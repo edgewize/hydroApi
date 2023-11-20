@@ -140,11 +140,12 @@ class Detector(object):
         reviewed_screenshots = [i for i in self.screenshots if i.reviewed]
         for screenshot in reviewed_screenshots:
             human_count = screenshot.human_count
-            human_counts.append(human_count)
-            detections = screenshot.get_detections()
-            for detection in detections:
-                error = detection.error
-                errors.append((abs(error)))
+            if human_count:
+                human_counts.append(human_count)
+                detections = screenshot.get_detections()
+                for detection in detections:
+                    error = detection.error
+                    errors.append((abs(error)))
         model_error = sum(errors) / sum(human_counts)
         return model_error
 

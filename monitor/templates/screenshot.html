@@ -54,7 +54,7 @@
             <th><b>Error</b></th>
         </tr>
         <tr>
-            <td><img src="{{detection.imgsrc}}" alt="Image processed by {{ detection.model }}"></td>
+            <td><a href="/screenshot/{{screenshot.url_timestamp}}/alpha"><img src="{{detection.imgsrc}}" alt="Image processed by {{ detection.model }}"></a></td>
             <td>{{ detection.model }}</td>
             <td>{{ detection.count }}</td>
             <td>{{ detection.error   }}</td>
@@ -62,5 +62,7 @@
     </table>
     {% endfor %}
 </article>    
+{% else %}
+<a href="/screenshot/{{screenshot.url_timestamp}}/alpha" role="button">Run Detector</a>
 {% endif %}
 {% endblock %}

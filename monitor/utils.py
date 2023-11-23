@@ -145,6 +145,13 @@ def alpha_detector(image):
     return filtered_detections
 
 
+def lookup_detector(name):
+    detectors = {
+        "alpha": alpha_detector
+    }
+    return detectors[name]
+
+
 def update_detection(detection, count):
     detection.count = count
     detection.save()

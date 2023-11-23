@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<header>
+    <hgroup>
+        <h1>{{ detection.timestamp }}</h1>
+        <p>
+            <a href="/">Dashboard</a> > <a href="/screenshot/{{ screenshot.url_timestamp }}">Screenshot</a>
+        </p>
+    </hgroup>
+</header>
+<img src="{{ detection.imgsrc }}?auto=format&w=1130" alt="Original image {{ screenshot.timestamp }}" width="1130" height="635" />
+{% endblock %}

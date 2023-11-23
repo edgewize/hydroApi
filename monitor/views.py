@@ -73,6 +73,22 @@ def screenshot(request, timestamp):
     }
     return render(request, "screenshot.html", context)
 
+def detection(request, timestamp, model):
+    detection = Detection.objects.filter(model=model, timestamp=timestamp)
+    if detection.count() == 0:
+        screenshot = Screenshot.objects.filter(timestamp=timestamp).first()
+        detector_function = utils.lookup_detector(model)
+        detector = Detector(model, detector_function)
+        detection = detector.detect(screenshot)
+    else:
+        detection = detection.first()
+        screenshot = detection.get_screenshot()
+    context = {
+        "screenshot": screenshot,
+        "detection": detection
+    }
+    return render(request, "detection.html", context)
+
 def load(request):
     Screenshot.objects.all().delete()
     Detection.objects.all().delete()

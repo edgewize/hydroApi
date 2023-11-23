@@ -13,6 +13,7 @@ from django.utils import timezone
 import pytz
 from django.db import models
 
+
 def visualize_detections(image, detections) -> np.ndarray:
     """Draws bounding boxes on the input image and return it.
     Args:
@@ -96,7 +97,7 @@ class ScreenshotStore:
     def list_files(self, path):
         return [i.key for i in self.bucket.objects.filter(Prefix=path)]
 
-    def get_latest_timestamp(self)->datetime.datetime:
+    def get_latest_timestamps(self, count=None):
         files = self.list_files("images/wave/")
         # transform file paths and filter timestamp imgs from the base directory
         date_files = [
@@ -105,6 +106,13 @@ class ScreenshotStore:
             if ":" in i and len(i.split("/")) <= 3
         ]
         datetimes = [str_to_datetime(i) for i in date_files]
+        datetimes.sort()
+        if count:
+            datetimes = datetimes[:count]
+        return datetimes
+
+    def get_latest_timestamp(self) -> datetime.datetime:
+        datetimes = self.get_latest_timestamps()
         max_date = max(datetimes)
         return max_date
 
@@ -112,15 +120,21 @@ class ScreenshotStore:
         return self.imgcdn + path
 
 
+def resize_image(image, size):
+    width = size[0]
+    height = size[1]
+    resize = image.resize((width, height), Image.Resampling.LANCZOS)
+    return resize
+
+
 def alpha_detector(image):
     # Mask the image so we only look in the surf line
-    img_bg = Image.open("static/img/bg.png")
-    img_mask = Image.open("static/img/mask.png").convert("L")
+    img_bg = resize_image(Image.open("static/img/bg.png"), image.size)
+    img_mask = resize_image(Image.open("static/img/mask.png").convert("L"), image.size)
     composite = Image.composite(image, img_bg, img_mask)
     # Use mediapipe (mp) images for image detection and annotation
-    image = mp.Image(image_format=mp.ImageFormat.SRGBA, data=np.asarray(composite))
-    detection_result = detect_objects(image)
-    # mp_img = mp.Image(image_format=mp.ImageFormat.SRGBA, data=np.asarray(img))
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGBA, data=np.asarray(composite))
+    detection_result = detect_objects(mp_image)
     filtered_detections = [
         i
         for i in detection_result.detections

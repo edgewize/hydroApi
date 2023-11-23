@@ -1,22 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
+<hgroup>
+    <h1>Screenshots</h1>
+    <h2>Total: {{screenshots|length}} | Reviewed: {{review_count}}</h2>
+</hgroup>        
 <article>
-    <header>
-        <hgroup>
-            <h1>Screenshots</h1>
-            <h2>Total: {{screenshots|length}} | Reviewed: {{review_count}}</h2>
-        </hgroup>        
-    </header>   
     <table>
         {% for screenshot in screenshots %}
         <tr>
-            <th><b>{{ screenshot.timestamp }}</b>`</th>
-            <th><b>Count</b></th>
-            <th><b>Mode</b></th>
-            <th><b>Details</b></th>
+            <th colspan="4"><b>{{ screenshot.timestamp }}</b></th>
         </tr>
         <tr>
-            <td><a href="/screenshot/{{ screenshot.url_timestamp }}"><img src="{{ screenshot.imgsrc }}" alt="Screenshot {{ screenshot.timestamp }}"/></a></td>
+            <td><a href="/screenshot/{{ screenshot.url_timestamp }}"><img src="{{ screenshot.imgsrc }}?w=491" alt="Screenshot {{ screenshot.timestamp }}"/></a></td>
             <td>Count: <b>{{screenshot.human_count}}</b></td>
             <td>Mode: <b>{{ screenshot.human_mode }}</b></td>
             <td><a href="/screenshot/{{ screenshot.url_timestamp }}" role="button">View</a></td>

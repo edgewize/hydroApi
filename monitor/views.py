@@ -10,11 +10,12 @@ def index(request):
     detection_model = "alpha"
     # heatmap = utils.transform_heatmap(detections)
     screenshot_detector = Detector(detection_model, utils.alpha_detector) 
+    # screenshot_detector.refresh(10)
     screenshot = screenshot_detector.detect_latest_screenshot()
     detection = screenshot.get_detections(model=detection_model)[0]
     now = timezone.now()
     error_range = screenshot_detector.error_range(detection)
-    timeline = screenshot_detector.timeline(now - timedelta(days=3))
+    timeline = screenshot_detector.timeline(10)
     context = {
         "screenshot": screenshot,
         "detection": detection,

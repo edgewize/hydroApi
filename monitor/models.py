@@ -32,7 +32,7 @@ class Detection(models.Model):
         else:
             usage = "low"
         return usage
-    
+
     @property
     def error(self):
         screenshot = self.get_screenshot()
@@ -50,7 +50,6 @@ class Detection(models.Model):
         else:
             screenshot = screenshots[0]
         return screenshot
-        
 
 
 class Screenshot(models.Model):
@@ -78,7 +77,8 @@ class Screenshot(models.Model):
         else:
             detections = Detection.objects.filter(timestamp=self.timestamp)
         return detections
-    
+
+
 class Detector(object):
     def __init__(self, name, detect_function):
         self.name = name
@@ -106,20 +106,20 @@ class Detector(object):
                 timestamp=screenshot.timestamp, model=self.name, count=detection_count
             )
         detection.save()
-        return detections
+        return detection
 
-    def detect_all(self):
-        for screenshot in self.screenshots():
-            if screenshot.get_detections(model=self.name).count() == 0:
-                detection = self.detect.screenshot()
-                print(f"Detected {detection.count} objects in {screenshot.timestamp}")
-            else:
-                print(f"{screenshot.timestamp} already processed")
+    def refresh(self, count):
+        timestamps = self.storage.get_latest_timestamps(count=count)
+        for timestamp in timestamps:
+            screenshot = Screenshot(timestamp=timestamp)
+            screenshot.save()
+            detection = self.detect(screenshot)
+            print(f"Detected {detection.count} objects in {screenshot.timestamp}")
 
     def get_screenshot(self, timestamp):
         screenshots = [i for i in self.screenshots if i.timestamp == timestamp]
         if len(screenshots) == 0:
-            #  new timstammp in storage and it needs a db record here
+            # new timstammp in storage and it needs a db record here
             screenshot = Screenshot(timestamp=timestamp)
             screenshot.save()
         else:
@@ -161,23 +161,19 @@ class Detector(object):
         payload = (low, high)
         return payload
 
-    def timeline(self, start_date):
-        screenshots = [i for i in self.screenshots if i.timestamp >= start_date]
-        detections = [i.get_detections()[0] for i in screenshots]
+    def timeline(self, sample_count):
+        detections = sorted(self.detections, key=lambda x: x.timestamp)[-sample_count:]
         x = [i.timestamp for i in detections]
         y = [i.count for i in detections]
         fig = go.Figure()
-        scatter = go.Scatter(
-            x=x, y=y, mode="lines", 
-            name="Usage Timeline"
-        )
+        scatter = go.Bar(x=x, y=y, name="Usage Timeline")
         fig.add_trace(scatter)
         fig.update_layout(
-            template='plotly_dark',
+            template="plotly_dark",
             height=200,
             margin=dict(l=20, r=20, t=40, b=20),
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)'
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
         )
         plt_div = plot(fig, output_type="div")
         return plt_div

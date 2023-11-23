@@ -5,13 +5,11 @@
   <h1>Boise Wave Monitor</h1>
   <p>Tracking <a href="https://www.boisewhitewaterpark.com/" target="_blank">Boise Whitewater Park</a> usage with computer vision.</p>
 </hgroup>
+<hgroup>
+  <h2>Usage Timeline</h2>
+  {{ timeline | safe }}
+</hgroup>
 <article>
-  <header>
-    <hgroup>
-      <h2>Usage Timeline</h2>
-      {{ timeline | safe }}
-    </hgroup>
-  </header>
   <hgroup>
     <h2>
       Latest Sample
@@ -19,7 +17,7 @@
     <p>Detected <b>{{detection.count}} people</b> using the wave at <b>{{screenshot.timestamp.hour}}:{{screenshot.timestamp.minute}}</b> on <b>{{screenshot.timestamp.date}}</b></p>
     <p>
   </hgroup>
-  <p><a href="/screenshot/{{ screenshot.url_timestamp }}"><img src="{{ detection.imgsrc }}?width=951" width="951" height="535"/></a></p>
+  <p><a href="/screenshot/{{ screenshot.url_timestamp }}"><img src="{{ detection.imgsrc }}?width=1050" width="1050" height="590"/></a></p>
   <div class="grid">
     <div>
       <p><kbd>{{ detection.usage_rating | title }} usage</kbd></p>

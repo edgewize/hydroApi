@@ -11,7 +11,58 @@ from matplotlib import pyplot as plt
 from PIL import Image
 from django.utils import timezone
 import pytz
-from django.db import models
+import requests
+import json
+
+
+class ScreenshotStore:
+    def __init__(self):
+        load_dotenv()
+        s3 = boto3.resource(
+            "s3",
+            endpoint_url="https://s3.us-west-1.wasabisys.com",
+            aws_access_key_id=os.getenv("WASABI_ACCESS"),
+            aws_secret_access_key=os.getenv("WASABI_SECRET"),
+        )
+        self.bucket = s3.Bucket("edginton-portfolio")
+        self.imgcdn = "https://edgewize.imgix.net"
+
+    def upload(self, img, save_path):
+        temp_save_path = f"detect.png"
+        plt.imsave(temp_save_path, img)
+        self.bucket.upload_file(temp_save_path, save_path)
+        os.remove(temp_save_path)
+        # return f"Successful upload to {save_path}"
+
+    def get_image(self, key):
+        object = self.bucket.Object(key)
+        img = Image.open(io.BytesIO(object.get()["Body"].read()))
+        return img
+
+    def list_files(self, path):
+        return [i.key for i in self.bucket.objects.filter(Prefix=path)]
+
+    def get_latest_timestamps(self, count=None):
+        files = self.list_files("images/wave/")
+        # transform file paths and filter timestamp imgs from the base directory
+        date_files = [
+            i.split("/")[-1].replace(".png", "").replace("_", " ")
+            for i in files
+            if ":" in i and len(i.split("/")) <= 3
+        ]
+        datetimes = [str_to_datetime(i) for i in date_files]
+        datetimes.sort()
+        if count:
+            datetimes = datetimes[:count]
+        return datetimes
+
+    def get_latest_timestamp(self) -> datetime.datetime:
+        datetimes = self.get_latest_timestamps()
+        max_date = max(datetimes)
+        return max_date
+
+    def imgcdn_src(self, path):
+        return self.imgcdn + path
 
 
 def visualize_detections(image, detections) -> np.ndarray:
@@ -70,56 +121,6 @@ def detect_objects(img, options=None):
     return detection_result
 
 
-class ScreenshotStore:
-    def __init__(self):
-        load_dotenv()
-        s3 = boto3.resource(
-            "s3",
-            endpoint_url="https://s3.us-west-1.wasabisys.com",
-            aws_access_key_id=os.getenv("WASABI_ACCESS"),
-            aws_secret_access_key=os.getenv("WASABI_SECRET"),
-        )
-        self.bucket = s3.Bucket("edginton-portfolio")
-        self.imgcdn = "https://edgewize.imgix.net"
-
-    def upload(self, img, save_path):
-        temp_save_path = f"detect.png"
-        plt.imsave(temp_save_path, img)
-        self.bucket.upload_file(temp_save_path, save_path)
-        os.remove(temp_save_path)
-        # return f"Successful upload to {save_path}"
-
-    def get_image(self, key):
-        object = self.bucket.Object(key)
-        img = Image.open(io.BytesIO(object.get()["Body"].read()))
-        return img
-
-    def list_files(self, path):
-        return [i.key for i in self.bucket.objects.filter(Prefix=path)]
-
-    def get_latest_timestamps(self, count=None):
-        files = self.list_files("images/wave/")
-        # transform file paths and filter timestamp imgs from the base directory
-        date_files = [
-            i.split("/")[-1].replace(".png", "").replace("_", " ")
-            for i in files
-            if ":" in i and len(i.split("/")) <= 3
-        ]
-        datetimes = [str_to_datetime(i) for i in date_files]
-        datetimes.sort()
-        if count:
-            datetimes = datetimes[:count]
-        return datetimes
-
-    def get_latest_timestamp(self) -> datetime.datetime:
-        datetimes = self.get_latest_timestamps()
-        max_date = max(datetimes)
-        return max_date
-
-    def imgcdn_src(self, path):
-        return self.imgcdn + path
-
-
 def resize_image(image, size):
     width = size[0]
     height = size[1]
@@ -127,12 +128,33 @@ def resize_image(image, size):
     return resize
 
 
+def purge_imgcdn(imgix_url):
+    API_KEY = os.getenv("IMGIX_KEY")
+    API_ENDPOINT = "https://api.imgix.com/api/v1/purge"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/vnd.api+json",
+    }
+    payload = {
+        "data": {
+            "type": "purges",
+            "attributes": {
+                "url": imgix_url,
+                "source_id": "5ebee107e9c05c0001d9c2d3",
+                "sub_image": False,
+            },
+        }
+    }
+    post = requests.post(url=API_ENDPOINT, headers=headers, data=json.dumps(payload))
+    return post
+
+
 def alpha_detector(image):
     # Mask the image so we only look in the surf line
     img_bg = resize_image(Image.open("static/img/bg.png"), image.size)
     img_mask = resize_image(Image.open("static/img/mask.png").convert("L"), image.size)
     composite = Image.composite(image, img_bg, img_mask)
-    # Use mediapipe (mp) images for image detection and annotation
+    # Use mediapipe (mp) images for image detection and annotation.
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGBA, data=np.asarray(composite))
     detection_result = detect_objects(mp_image)
     filtered_detections = [
@@ -145,10 +167,35 @@ def alpha_detector(image):
     return filtered_detections
 
 
+def delta_detector(image):
+    BaseOptions = mp.tasks.BaseOptions
+    ObjectDetectorOptions = mp.tasks.vision.ObjectDetectorOptions
+    VisionRunningMode = mp.tasks.vision.RunningMode
+    options = ObjectDetectorOptions(
+        base_options=BaseOptions(model_asset_path="efficientdet_lite0.tflite"),
+        max_results=20,
+        score_threshold=0.0,
+        running_mode=VisionRunningMode.IMAGE,
+    )
+    img_bg = resize_image(Image.open("static/img/bg.png"), image.size)
+    img_mask = resize_image(
+        Image.open("static/img/delta_mask.png").convert("L"), image.size
+    )
+    composite = Image.composite(image, img_bg, img_mask)
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGBA, data=np.asarray(composite))
+    detection_results = detect_objects(mp_image, options=options).detections
+    filtered_detections = []
+    for detection in detection_results:
+        w = detection.bounding_box.width
+        h = detection.bounding_box.height
+        area = w * h
+        if area < 500 and area > 100 and h < 500 and w < 100:
+            filtered_detections.append(detection)
+    return filtered_detections
+
+
 def lookup_detector(name):
-    detectors = {
-        "alpha": alpha_detector
-    }
+    detectors = {"alpha": alpha_detector, "delta": delta_detector}
     return detectors[name]
 
 

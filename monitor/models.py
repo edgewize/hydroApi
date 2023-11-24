@@ -46,11 +46,11 @@ class Detection(models.Model):
     def get_screenshot(self):
         screenshots = Screenshot.objects.filter(timestamp=self.timestamp)
         if screenshots.count() == 0:
-            screenshot = None
+            screenshot = Screenshot(timestamp=self.timestamp)
+            screenshot.save()
         else:
-            screenshot = screenshots[0]
+            screenshot = screenshots.first()
         return screenshot
-
 
 class Screenshot(models.Model):
     timestamp = models.DateTimeField(primary_key=True)
@@ -91,15 +91,16 @@ class Detector(object):
 
     def detect(self, screenshot, update=False):
         image = self.storage.get_image(screenshot.imgpath)
-        detections = self.detect_function(image)
-        rgb_annotated_image = utils.visualize_detections(image, detections)
+        img_detections = self.detect_function(image)
+        rgb_annotated_image = utils.visualize_detections(image, img_detections)
         self.storage.upload(
             rgb_annotated_image,
             f"images/wave/{self.name}/{screenshot.url_timestamp}.png",
         )
-        detection_count = len(detections)
+        detection_count = len(img_detections)
+        detections = Detection.objects.filter(timestamp=screenshot.timestamp, model=self.name)
         if detections and update:
-            detection = detections[0]
+            detection =detections.first()
             detection.count = detection_count
         else:
             detection = Detection(
@@ -113,7 +114,9 @@ class Detector(object):
         for timestamp in timestamps:
             screenshot = Screenshot(timestamp=timestamp)
             screenshot.save()
-            detection = self.detect(screenshot)
+            detection = self.detect(screenshot, update=True)
+            purge_cdn = utils.purge_imgcdn(detection.imgsrc)
+            print(purge_cdn)
             print(f"Detected {detection.count} objects in {screenshot.timestamp}")
 
     def get_screenshot(self, timestamp):
@@ -137,7 +140,7 @@ class Detector(object):
     def error(self):
         human_counts = []
         errors = []
-        reviewed_screenshots = [i for i in self.screenshots if i.reviewed]
+        reviewed_screenshots = [i for i in self.screenshots if i.reviewed and i.human_mode != "invalid"]
         for screenshot in reviewed_screenshots:
             human_count = screenshot.human_count
             if human_count:
@@ -146,7 +149,7 @@ class Detector(object):
                 for detection in detections:
                     error = detection.error
                     errors.append((abs(error)))
-        model_error = sum(errors) / sum(human_counts)
+        model_error = sum(human_counts) / sum(errors) 
         return model_error
 
     def error_range(self, detection: Detection) -> set:

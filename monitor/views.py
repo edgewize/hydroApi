@@ -7,17 +7,15 @@ import monitor.utils as utils
 from monitor.models import Screenshot, Detection, Detector
 
 def index(request):
-    detection_model = "alpha"
-    # heatmap = utils.transform_heatmap(detections)
-    screenshot_detector = Detector(detection_model, utils.alpha_detector) 
-    # screenshot_detector.refresh(10)
+    detection_model = "delta"
+    detect_function = utils.lookup_detector(detection_model)
+    screenshot_detector = Detector(detection_model, detect_function)
     screenshot = screenshot_detector.detect_latest_screenshot()
-    detection = screenshot.get_detections(model=detection_model)[0]
-    now = timezone.now()
+    detection = screenshot.get_detections(model=detection_model).first()
     error_range = screenshot_detector.error_range(detection)
     timeline = screenshot_detector.timeline(10)
     context = {
-        "screenshot": screenshot,
+        "screenshot": screenshot,   
         "detection": detection,
         "error": error_range,
         "timeline": timeline
@@ -73,12 +71,33 @@ def screenshot(request, timestamp):
     }
     return render(request, "screenshot.html", context)
 
-def detection(request, timestamp, model):
-    detection = Detection.objects.filter(model=model, timestamp=timestamp)
+def detector(request, name):
+    detector_function = utils.lookup_detector(name)
+    detections = Detection.objects.filter(model=name)
+    detector = Detector(name, detector_function)
+    refresh_count = request.GET.get('count')
+    if refresh_count:
+        detector.refresh(int(refresh_count))
+    count = len(detections)
+    reviewed_count = len([i for i in detections if i.get_screenshot().reviewed])
+    error = detector.error()
+    context = {
+        "name": name,
+        "detections": detections,
+        "data": {
+            "count": count,
+            "reviewed": reviewed_count,
+            "error": error
+        }
+    }
+    return render(request, "detector.html", context=context)
+
+def detection(request, timestamp, name):
+    detection = Detection.objects.filter(model=name, timestamp=timestamp)
     if detection.count() == 0:
         screenshot = Screenshot.objects.filter(timestamp=timestamp).first()
-        detector_function = utils.lookup_detector(model)
-        detector = Detector(model, detector_function)
+        detector_function = utils.lookup_detector(name)
+        detector = Detector(name, detector_function)
         detection = detector.detect(screenshot)
     else:
         detection = detection.first()

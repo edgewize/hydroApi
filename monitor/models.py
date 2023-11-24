@@ -149,7 +149,7 @@ class Detector(object):
                 for detection in detections:
                     error = detection.error
                     errors.append((abs(error)))
-        model_error = sum(errors) / sum(human_count) 
+        model_error = sum(errors) / sum(human_counts)
         return model_error
 
     def error_range(self, detection: Detection) -> set:

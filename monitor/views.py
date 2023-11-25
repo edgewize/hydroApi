@@ -39,7 +39,7 @@ def screenshot(request, timestamp):
             screenshot = s
             try:
                 prev_screenshot = screenshots[index-1]
-            except IndexError:
+            except:
                 prev_screenshot = None
             try:
                 next_screenshot = screenshots[index+1]
@@ -50,6 +50,7 @@ def screenshot(request, timestamp):
             screenshot = None
     if screenshot:
         detections = screenshot.get_detections()
+        potential_detectors = screenshot.get_potential_detectors()
         if request.POST:
             count = request.POST.get("human_count")
             mode = request.POST.get("human_mode")
@@ -67,27 +68,33 @@ def screenshot(request, timestamp):
         "screenshot": screenshot,
         "detections": detections,
         "prev_screenshot": prev_screenshot,
-        "next_screenshot": next_screenshot
+        "next_screenshot": next_screenshot,
+        "detectors": potential_detectors
     }
     return render(request, "screenshot.html", context)
 
 def detector(request, name):
     detector_function = utils.lookup_detector(name)
-    detections = Detection.objects.filter(model=name)
     detector = Detector(name, detector_function)
+    detections = detector.valid_detections
+    detections.sort(key=lambda x: x.timestamp, reverse=False)
     refresh_count = request.GET.get('count')
     if refresh_count:
         detector.refresh(int(refresh_count))
-    count = len(detections)
-    reviewed_count = len([i for i in detections if i.get_screenshot().reviewed])
-    error = detector.error()
+    detect_reviewed = request.GET.get("reviewed")
+    if detect_reviewed:
+        detector.detect_reviewed()
+    clear = request.GET.get("clear")
+    if clear:
+        detections.delete()
     context = {
         "name": name,
         "detections": detections,
         "data": {
-            "count": count,
-            "reviewed": reviewed_count,
-            "error": error
+            "total": len(detector.detections),
+            "valid": len(detector.valid_detections),
+            "reviewed": len(detector.reviewed_screenshots),
+            "error": detector.error()
         }
     }
     return render(request, "detector.html", context=context)

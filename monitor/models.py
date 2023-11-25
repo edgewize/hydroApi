@@ -52,6 +52,14 @@ class Detection(models.Model):
             screenshot = screenshots.first()
         return screenshot
 
+    def invalid(self):
+        screenshot = self.get_screenshot()
+        if screenshot.human_mode == "invalid":
+            return True
+        else:
+            return False
+
+
 class Screenshot(models.Model):
     timestamp = models.DateTimeField(primary_key=True)
     url = models.CharField(max_length=99, null=True)
@@ -78,6 +86,14 @@ class Screenshot(models.Model):
             detections = Detection.objects.filter(timestamp=self.timestamp)
         return detections
 
+    def get_potential_detectors(self):
+        done_detectors = [i.model for i in self.get_detections()]
+        all_detectors = utils.get_detectors().keys()
+        potential_detectors = [i for i in all_detectors if i not in done_detectors]
+        if len(potential_detectors) == 0:
+            potential_detectors = None
+        return potential_detectors
+
 
 class Detector(object):
     def __init__(self, name, detect_function):
@@ -85,9 +101,11 @@ class Detector(object):
         self.storage = utils.ScreenshotStore()
         self.detect_function = detect_function
         self.detections = Detection.objects.filter(model=name)
+        self.valid_detections = [i for i in self.detections if not i.invalid()]
         self.screenshots = [
-            s for s in [i.get_screenshot() for i in self.detections] if s
+            s for s in [i.get_screenshot() for i in self.valid_detections] if s
         ]
+        self.reviewed_screenshots = [i for i in self.screenshots if i.reviewed]
 
     def detect(self, screenshot, update=False):
         image = self.storage.get_image(screenshot.imgpath)
@@ -98,10 +116,14 @@ class Detector(object):
             f"images/wave/{self.name}/{screenshot.url_timestamp}.png",
         )
         detection_count = len(img_detections)
-        detections = Detection.objects.filter(timestamp=screenshot.timestamp, model=self.name)
+        detections = Detection.objects.filter(
+            timestamp=screenshot.timestamp, model=self.name
+        )
         if detections and update:
-            detection =detections.first()
+            detection = detections.first()
             detection.count = detection_count
+            purge_cdn = utils.purge_imgcdn(detection.imgsrc)
+            print(purge_cdn)
         else:
             detection = Detection(
                 timestamp=screenshot.timestamp, model=self.name, count=detection_count
@@ -115,8 +137,12 @@ class Detector(object):
             screenshot = Screenshot(timestamp=timestamp)
             screenshot.save()
             detection = self.detect(screenshot, update=True)
-            purge_cdn = utils.purge_imgcdn(detection.imgsrc)
-            print(purge_cdn)
+            print(f"Detected {detection.count} objects in {screenshot.timestamp}")
+
+    def detect_reviewed(self):
+        screenshots = Screenshot.objects.filter(reviewed=True)
+        for screenshot in screenshots:
+            detection = self.detect(screenshot, update=True)
             print(f"Detected {detection.count} objects in {screenshot.timestamp}")
 
     def get_screenshot(self, timestamp):
@@ -140,14 +166,13 @@ class Detector(object):
     def error(self):
         human_counts = []
         errors = []
-        reviewed_screenshots = [i for i in self.screenshots if i.reviewed and i.human_mode != "invalid"]
-        for screenshot in reviewed_screenshots:
+        for screenshot in self.reviewed_screenshots:
             human_count = screenshot.human_count
             if human_count:
-                human_counts.append(human_count)
                 detections = screenshot.get_detections()
                 for detection in detections:
                     error = detection.error
+                    human_counts.append(human_count)
                     errors.append((abs(error)))
         model_error = sum(errors) / sum(human_counts)
         return model_error

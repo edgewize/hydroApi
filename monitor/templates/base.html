@@ -8,6 +8,25 @@
     <title>{{title}}</title>
   </head>
   <body>
+    <nav class="container-fluid">
+      <ul>
+        <li>
+          <a href="/" class="contrast"><b>Dashboard</b></a>
+        </li>
+      </ul>
+      <ul>
+        <li><a href="/screenshot" class="contrast">Screenshots</a></li>
+        <li>
+          <details role="list" dir="rtl">
+            <summary aria-haspopup="listbox" role="link" class="contrast">Detectors</summary>
+            <ul role="listbox">
+              <li><a href="/detector/alpha">Alpha</a></li>
+              <li><a href="/detector/delta">Delta</a></li>
+            </ul>
+          </details>
+        </li>
+      </ul>
+    </nav>
     <main class="container">
       <section>
         {% block content %}

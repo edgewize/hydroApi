@@ -42,10 +42,8 @@
     </div>
 </form>
 <img src="{{ screenshot.imgsrc }}?auto=format&w=1130" alt="Original image {{ screenshot.timestamp }}" width="1130" height="635" />
-{% if detections %}
 <article>
     <h2>Detections</h2>
-    {% for detection in detections %}
     <table>
         <tr>
             <th><b>Image</b></th>
@@ -53,16 +51,23 @@
             <th><b>Count</b></th>
             <th><b>Error</b></th>
         </tr>
+        {% for detection in detections %}
         <tr>
             <td><a href="/screenshot/{{screenshot.url_timestamp}}/{{ detection.model }}"><img src="{{detection.imgsrc}}" alt="Image processed by {{ detection.model }}"></a></td>
             <td>{{ detection.model }}</td>
             <td>{{ detection.count }}</td>
             <td>{{ detection.error   }}</td>
         </tr>
+        {% endfor %}
+        {% if detectors %}
+            {% for detector in detectors %}
+                <tr>
+                    <td>
+                        <a href="/screenshot/{{screenshot.url_timestamp}}/{{ detector }}" role="button">Detect {{ detector | title }}</a>
+                    </td>
+                </tr>
+            {% endfor %}
+        {% endif %}
     </table>
-    {% endfor %}
 </article>    
-{% else %}
-<a href="/screenshot/{{screenshot.url_timestamp}}/{{ detection.name }}" role="button">Run Detector</a>
-{% endif %}
 {% endblock %}

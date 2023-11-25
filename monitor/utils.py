@@ -194,8 +194,11 @@ def delta_detector(image):
     return filtered_detections
 
 
+def get_detectors():
+    return {"alpha": alpha_detector, "delta": delta_detector}
+
 def lookup_detector(name):
-    detectors = {"alpha": alpha_detector, "delta": delta_detector}
+    detectors = get_detectors()
     return detectors[name]
 
 

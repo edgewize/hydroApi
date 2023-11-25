@@ -12,12 +12,14 @@
 </header>
 <table>
     <tr>
-        <th><b>Count</b></th>
+        <th><b>Total</b></th>
+        <th><b>Valid</b></th>
         <th><b>Reviewed</b></th>
         <th><b>Error</b></th>
     </tr>
     <tr>
-        <th>{{ data.count }}</th>
+        <th>{{ data.total }}</th>
+        <th>{{ data.valid }}</th>
         <th>{{ data.reviewed }}</th>
         <th>{{ data.error }}</th>
     </tr>
@@ -27,7 +29,7 @@
     {% for detection in detections %}
     <table>
         <tr>
-            <th><b>Image</b></th>
+            <th><b>{{ detection.timestamp }}</b></th>
             <th><b>Model</b></th>
             <th><b>Count</b></th>
             <th><b>Error</b></th>
@@ -36,6 +38,7 @@
             <td><a href="/screenshot/{{detection.url_timestamp}}/{{ name }}"><img src="{{detection.imgsrc}}" alt="Image processed by {{ detection.model }}"></a></td>
             <td>{{ detection.model }}</td>
             <td>{{ detection.count }}</td>
+            <td>{{ detection.error }}</td>
         </tr>
     </table>
     {% endfor %}

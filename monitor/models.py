@@ -52,7 +52,7 @@ class Detection(models.Model):
             screenshot = screenshots.first()
         return screenshot
 
-    def invalid(self):
+    def is_invalid(self):
         screenshot = self.get_screenshot()
         if screenshot.human_mode == "invalid":
             return True
@@ -101,7 +101,7 @@ class Detector(object):
         self.storage = utils.ScreenshotStore()
         self.detect_function = detect_function
         self.detections = Detection.objects.filter(model=name)
-        self.valid_detections = [i for i in self.detections if not i.invalid()]
+        self.valid_detections = [i for i in self.detections if not i.is_invalid()] 
         self.screenshots = [
             s for s in [i.get_screenshot() for i in self.valid_detections] if s
         ]
@@ -174,7 +174,10 @@ class Detector(object):
                     error = detection.error
                     human_counts.append(human_count)
                     errors.append((abs(error)))
-        model_error = sum(errors) / sum(human_counts)
+        try:
+            model_error = sum(errors) / sum(human_counts)
+        except ZeroDivisionError:
+            model_error = None
         return model_error
 
     def error_range(self, detection: Detection) -> set:

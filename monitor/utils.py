@@ -36,7 +36,10 @@ class ScreenshotStore:
 
     def get_image(self, key):
         object = self.bucket.Object(key)
-        img = Image.open(io.BytesIO(object.get()["Body"].read()))
+        if object:
+            img = Image.open(io.BytesIO(object.get()["Body"].read()))
+        else:
+            img = None
         return img
 
     def list_files(self, path):

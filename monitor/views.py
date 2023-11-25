@@ -77,7 +77,6 @@ def detector(request, name):
     detector_function = utils.lookup_detector(name)
     detector = Detector(name, detector_function)
     detections = detector.valid_detections
-    detections.sort(key=lambda x: x.timestamp, reverse=False)
     refresh_count = request.GET.get('count')
     if refresh_count:
         detector.refresh(int(refresh_count))
@@ -86,7 +85,7 @@ def detector(request, name):
         detector.detect_reviewed()
     clear = request.GET.get("clear")
     if clear:
-        detections.delete()
+        detector.detections.delete()
     context = {
         "name": name,
         "detections": detections,

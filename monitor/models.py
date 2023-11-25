@@ -186,10 +186,13 @@ class Detector(object):
         """
         count = detection.count
         error = self.error
-        error_amount = count * error()
-        low = count - error_amount
-        high = count + error_amount
-        payload = (low, high)
+        if count and error:
+            error_amount = count * error()
+            low = count - error_amount
+            high = count + error_amount
+            payload = (low, high)
+        else:
+            payload = None
         return payload
 
     def timeline(self, sample_count):

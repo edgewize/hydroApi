@@ -6,6 +6,7 @@ import pandas as pd
 import monitor.utils as utils
 from monitor.models import Screenshot, Detection, Detector
 
+
 def index(request):
     detection_model = "delta"
     detect_function = utils.lookup_detector(detection_model)
@@ -15,34 +16,33 @@ def index(request):
     error_range = screenshot_detector.error_range(detection)
     timeline = screenshot_detector.timeline(10)
     context = {
-        "screenshot": screenshot,   
+        "screenshot": screenshot,
         "detection": detection,
         "error": error_range,
-        "timeline": timeline
+        "timeline": timeline,
     }
     return render(request, "index.html", context)
+
 
 def screenshots(request):
     screenshots = Screenshot.objects.all().order_by("-timestamp")
     review_count = Screenshot.objects.filter(reviewed=True).count()
-    context = {
-        "screenshots": screenshots,
-        "review_count": review_count
-    }
+    context = {"screenshots": screenshots, "review_count": review_count}
     return render(request, "screenshots.html", context)
 
+
 def screenshot(request, timestamp):
-    timestamp = utils.str_to_datetime(timestamp.replace("_"," "))
+    timestamp = utils.str_to_datetime(timestamp.replace("_", " "))
     screenshots = Screenshot.objects.all()
     for index, s in enumerate(screenshots):
         if s.timestamp == timestamp:
             screenshot = s
             try:
-                prev_screenshot = screenshots[index-1]
+                prev_screenshot = screenshots[index - 1]
             except:
                 prev_screenshot = None
             try:
-                next_screenshot = screenshots[index+1]
+                next_screenshot = screenshots[index + 1]
             except IndexError:
                 next_screenshot = None
             break
@@ -69,15 +69,16 @@ def screenshot(request, timestamp):
         "detections": detections,
         "prev_screenshot": prev_screenshot,
         "next_screenshot": next_screenshot,
-        "detectors": potential_detectors
+        "detectors": potential_detectors,
     }
     return render(request, "screenshot.html", context)
+
 
 def detector(request, name):
     detector_function = utils.lookup_detector(name)
     detector = Detector(name, detector_function)
     detections = detector.valid_detections
-    refresh_count = request.GET.get('count')
+    refresh_count = request.GET.get("count")
     if refresh_count:
         detector.refresh(int(refresh_count))
     detect_reviewed = request.GET.get("reviewed")
@@ -93,10 +94,11 @@ def detector(request, name):
             "total": len(detector.detections),
             "valid": len(detector.valid_detections),
             "reviewed": len(detector.reviewed_screenshots),
-            "error": detector.error()
-        }
+            "error": detector.error(),
+        },
     }
     return render(request, "detector.html", context=context)
+
 
 def detection(request, timestamp, name):
     detection = Detection.objects.filter(model=name, timestamp=timestamp)
@@ -108,18 +110,15 @@ def detection(request, timestamp, name):
     else:
         detection = detection.first()
         screenshot = detection.get_screenshot()
-    context = {
-        "screenshot": screenshot,
-        "detection": detection
-    }
+    context = {"screenshot": screenshot, "detection": detection}
     return render(request, "detection.html", context)
+
 
 def load(request):
     Screenshot.objects.all().delete()
     Detection.objects.all().delete()
     print("Processing Images")
     data = pd.read_csv("screenshots.csv")
-    screenshot_detector = Detector("alpha", utils.alpha_detector)
     for index, row in data.iterrows():
         timestamp = utils.str_to_datetime(row["timestamp"])
         screenshot = Screenshot(
@@ -130,8 +129,12 @@ def load(request):
             reviewed=row["reviewed"],
         )
         screenshot.save()
-        detection = screenshot_detector.detect(screenshot)
+        detections = []
+        for name, detect_function in utils.get_detectors().items():
+            detector = Detector(name, detect_function)
+            detection = detector.detect(screenshot)
+            detections.append(detection)
         print(
-            f"{screenshot_detector.name} detected {detection.count} objects in {screenshot.timestamp}"
+            f"Detections {screenshot.timestamp.date()} {screenshot.timestamp.time()} - {', '.join([': '.join([i.model, str(i.count)]) for i in detections])}"
         )
     return HttpResponse("Done")

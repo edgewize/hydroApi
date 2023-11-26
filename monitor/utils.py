@@ -28,7 +28,10 @@ class ScreenshotStore:
         self.imgcdn = "https://edgewize.imgix.net"
 
     def upload(self, img, save_path):
-        temp_save_path = f"detect.png"
+        if "alpha" in save_path:
+            temp_save_path = "detect.png"
+        else:
+            temp_save_path = "detect_other.png"
         plt.imsave(temp_save_path, img)
         self.bucket.upload_file(temp_save_path, save_path)
         os.remove(temp_save_path)

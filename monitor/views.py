@@ -121,12 +121,14 @@ def load(request):
     data = pd.read_csv("screenshots.csv")
     for index, row in data.iterrows():
         timestamp = utils.str_to_datetime(row["timestamp"])
+        count = int(row["human_count"])
+        reviewed = bool(row["reviewed"])
         screenshot = Screenshot(
             timestamp=timestamp,
             url=row["url"],
-            human_count=row["human_count"],
+            human_count=count,
             human_mode=row["human_mode"],
-            reviewed=row["reviewed"],
+            reviewed=reviewed,
         )
         screenshot.save()
         detections = []

@@ -14,10 +14,10 @@ import pytz
 import requests
 import json
 
+load_dotenv()
 
 class ScreenshotStore:
     def __init__(self):
-        load_dotenv()
         s3 = boto3.resource(
             "s3",
             endpoint_url="https://s3.us-west-1.wasabisys.com",
@@ -145,13 +145,11 @@ def purge_imgcdn(imgix_url):
         "data": {
             "type": "purges",
             "attributes": {
-                "url": imgix_url,
-                "source_id": "5ebee107e9c05c0001d9c2d3",
-                "sub_image": False,
+                "url": imgix_url
             },
         }
     }
-    post = requests.post(url=API_ENDPOINT, headers=headers, data=json.dumps(payload))
+    post = requests.post(API_ENDPOINT, headers=headers, data=json.dumps(payload))
     return post
 
 

@@ -38,7 +38,7 @@ class Detection(models.Model):
         screenshot = self.get_screenshot()
         if screenshot:
             if type(screenshot.human_count) == int and type(self.count) == int:
-                error = screenshot.human_count - self.count
+                error = self.count - screenshot.human_count
             else:
                 error = None
         return error
@@ -123,11 +123,11 @@ class Detector(object):
             detection = detections.first()
             detection.count = detection_count
             purge_cdn = utils.purge_imgcdn(detection.imgsrc)
-            print(purge_cdn)
         else:
             detection = Detection(
                 timestamp=screenshot.timestamp, model=self.name, count=detection_count
             )
+        print(f"Detected {detection.count} objects in {screenshot.timestamp}")
         detection.save()
         return detection
 
@@ -169,7 +169,7 @@ class Detector(object):
         for screenshot in self.reviewed_screenshots:
             human_count = screenshot.human_count
             if human_count:
-                detections = screenshot.get_detections()
+                detections = screenshot.get_detections(model=self.name)
                 for detection in detections:
                     error = detection.error
                     human_counts.append(human_count)
@@ -185,9 +185,9 @@ class Detector(object):
         returns set(low, high)
         """
         count = detection.count
-        error = self.error
+        error = self.error()
         if count and error:
-            error_amount = count * error()
+            error_amount = count * error
             low = count - error_amount
             high = count + error_amount
             payload = (low, high)

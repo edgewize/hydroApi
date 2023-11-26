@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from datetime import datetime, timedelta
 from django.utils import timezone
@@ -101,15 +101,18 @@ def detector(request, name):
 
 
 def detection(request, timestamp, name):
+    detector_function = utils.lookup_detector(name)
+    detector = Detector(name, detector_function)
+    redo = bool(request.GET.get("redo"))
     detection = Detection.objects.filter(model=name, timestamp=timestamp)
-    if detection.count() == 0:
-        screenshot = Screenshot.objects.filter(timestamp=timestamp).first()
-        detector_function = utils.lookup_detector(name)
-        detector = Detector(name, detector_function)
-        detection = detector.detect(screenshot)
-    else:
+    if detection.count() > 0:
         detection = detection.first()
         screenshot = detection.get_screenshot()
+        if redo:
+            detection = detector.detect(screenshot, update=True)
+    else:
+        screenshot = Screenshot.objects.filter(timestamp=timestamp).first()
+        detection = detector.detect(screenshot)        
     context = {"screenshot": screenshot, "detection": detection}
     return render(request, "detection.html", context)
 
@@ -119,6 +122,10 @@ def load(request):
     Detection.objects.all().delete()
     print("Processing Images")
     data = pd.read_csv("screenshots.csv")
+    detectors = [
+        Detector(name, detect_function)
+        for name, detect_function in utils.get_detectors().items()
+    ]
     for index, row in data.iterrows():
         timestamp = utils.str_to_datetime(row["timestamp"])
         count = int(row["human_count"])
@@ -132,11 +139,10 @@ def load(request):
         )
         screenshot.save()
         detections = []
-        for name, detect_function in utils.get_detectors().items():
-            detector = Detector(name, detect_function)
+        for detector in detectors:
             detection = detector.detect(screenshot)
             detections.append(detection)
         print(
-            f"Detections {screenshot.timestamp.date()} {screenshot.timestamp.time()} - {', '.join([': '.join([i.model, str(i.count)]) for i in detections])}"
+            f"[{index}] Detections {screenshot.timestamp.date()} {screenshot.timestamp.time()} - {', '.join([': '.join([i.model, str(i.count)]) for i in detections])}"
         )
-    return HttpResponse("Done")
+    return redirect("screenshots")

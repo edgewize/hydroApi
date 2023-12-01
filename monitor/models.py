@@ -3,6 +3,7 @@ import plotly.graph_objs as go
 
 from django.db import models
 import monitor.utils as utils
+import json
 
 
 class Detection(models.Model):
@@ -195,12 +196,20 @@ class Detector(object):
             payload = None
         return payload
 
-    def timeline(self, sample_count):
+    def timeline_data(self, sample_count):
         detections = sorted(self.detections, key=lambda x: x.timestamp)[-sample_count:]
         x = [i.timestamp for i in detections]
         y = [i.count for i in detections]
+        data = dict(
+            x=x,
+            y=y
+        )
+        return data
+
+    def timeline(self, sample_count):
+        data = self.timeline_data(sample_count) 
         fig = go.Figure()
-        scatter = go.Bar(x=x, y=y, name="Usage Timeline")
+        scatter = go.Bar(x=data["x"], y=data["y"], name="Usage Timeline")
         fig.add_trace(scatter)
         fig.update_layout(
             template="plotly_dark",

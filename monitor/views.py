@@ -1,7 +1,5 @@
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
-from datetime import datetime, timedelta
-from django.utils import timezone
 import pandas as pd
 import monitor.utils as utils
 from monitor.models import Screenshot, Detection, Detector

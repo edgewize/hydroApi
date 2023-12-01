@@ -213,6 +213,8 @@ def update_detection(detection, count):
 
 
 def str_to_datetime(date_str):
+    if "_" in date_str:
+        date_str = date_str.replace("_"," ")
     timezone.now()
     d = datetime.datetime.strptime(
         date_str,
@@ -231,12 +233,11 @@ def str_to_datetime(date_str):
     return tz_aware_date
 
 
-def get_screenshot(timestamp: str) -> str:
-    if "_" in timestamp:
-        timestamp = timestamp.replace("_", " ")
-    record = Screenshot.objects.get(pk=str_to_datetime(timestamp))
-    return record
-
+# def get_screenshot(timestamp: str) -> str:
+#     if "_" in timestamp:
+#         timestamp = timestamp.replace("_", " ")
+#     record = Screenshot.objects.get(pk=str_to_datetime(timestamp))
+#     return record
 
 def transform_heatmap(detections):
     df = pd.DataFrame(

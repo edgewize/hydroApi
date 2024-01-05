@@ -1,9 +1,9 @@
 from plotly.offline import plot
 import plotly.graph_objs as go
-
+import pandas as pd
 from django.db import models
 import monitor.utils as utils
-import json
+import numpy
 
 
 class Detection(models.Model):
@@ -44,6 +44,10 @@ class Detection(models.Model):
                 error = None
         return error
 
+    def to_dict(self):
+        timestamp = f"{self.timestamp.date()} {self.timestamp.time()}"
+        return dict(timestamp=timestamp, imgsrc=self.imgsrc, count=self.count)
+
     def get_screenshot(self):
         screenshots = Screenshot.objects.filter(timestamp=self.timestamp)
         if screenshots.count() == 0:
@@ -59,6 +63,9 @@ class Detection(models.Model):
             return True
         else:
             return False
+
+    def __dict__(self):
+        return self.__attrs__
 
 
 class Screenshot(models.Model):
@@ -101,8 +108,8 @@ class Detector(object):
         self.name = name
         self.storage = utils.ScreenshotStore()
         self.detect_function = detect_function
-        self.detections = Detection.objects.filter(model=name)
-        self.valid_detections = [i for i in self.detections if not i.is_invalid()] 
+        self.detections = Detection.objects.filter(model=name).order_by("timestamp")
+        self.valid_detections = [i for i in self.detections if not i.is_invalid()]
         self.screenshots = [
             s for s in [i.get_screenshot() for i in self.valid_detections] if s
         ]
@@ -198,16 +205,28 @@ class Detector(object):
 
     def timeline_data(self, sample_count):
         detections = sorted(self.detections, key=lambda x: x.timestamp)[-sample_count:]
-        x = [i.timestamp for i in detections]
-        y = [i.count for i in detections]
-        data = dict(
-            x=x,
-            y=y
+        df = (
+            (
+                pd.DataFrame(
+                    {
+                        "timestamp": [i.timestamp for i in detections],
+                        "count": [i.count for i in detections],
+                    }
+                )
+                .set_index("timestamp")
+                .groupby(pd.Grouper(freq="d"))
+                .mean()
+            )
+            .reset_index()
+            .dropna()
         )
+        x = list(df["timestamp"].apply(lambda x: str(x.date())))
+        y = list(df["count"].values)
+        data = dict(x=x, y=y)
         return data
 
     def timeline(self, sample_count):
-        data = self.timeline_data(sample_count) 
+        data = self.timeline_data(sample_count)
         fig = go.Figure()
         scatter = go.Bar(x=data["x"], y=data["y"], name="Usage Timeline")
         fig.add_trace(scatter)
@@ -220,3 +239,21 @@ class Detector(object):
         )
         plt_div = plot(fig, output_type="div")
         return plt_div
+
+    def heatmap(self):
+        df = pd.DataFrame(
+            [
+                {"timestamp": i.timestamp, "count": int(i.count)}
+                for i in self.valid_detections
+            ]
+        )
+        df["hour"] = df["timestamp"].apply(lambda x: x.hour)
+        df["weekday"] = df["timestamp"].apply(lambda x: x.weekday)
+        transform = df.drop(columns=["timestamp"]).groupby(["hour", "weekday"]).mean()
+        transform = transform.unstack().fillna(0).values.tolist()
+        payload = {
+            "x": df["weekday"].unique().tolist(),
+            "y": df["hour"].unique().tolist(),
+            "z": transform,
+        }
+        return payload

@@ -13,8 +13,10 @@ from django.utils import timezone
 import pytz
 import requests
 import json
+import hydrofunctions
 
 load_dotenv()
+
 
 class ScreenshotStore:
     def __init__(self):
@@ -144,9 +146,7 @@ def purge_imgcdn(imgix_url):
     payload = {
         "data": {
             "type": "purges",
-            "attributes": {
-                "url": imgix_url
-            },
+            "attributes": {"url": imgix_url},
         }
     }
     post = requests.post(API_ENDPOINT, headers=headers, data=json.dumps(payload))
@@ -201,6 +201,7 @@ def delta_detector(image):
 def get_detectors():
     return {"alpha": alpha_detector, "delta": delta_detector}
 
+
 def lookup_detector(name):
     detectors = get_detectors()
     return detectors[name]
@@ -214,7 +215,7 @@ def update_detection(detection, count):
 
 def str_to_datetime(date_str):
     if "_" in date_str:
-        date_str = date_str.replace("_"," ")
+        date_str = date_str.replace("_", " ")
     timezone.now()
     d = datetime.datetime.strptime(
         date_str,
@@ -232,12 +233,6 @@ def str_to_datetime(date_str):
     )
     return tz_aware_date
 
-
-# def get_screenshot(timestamp: str) -> str:
-#     if "_" in timestamp:
-#         timestamp = timestamp.replace("_", " ")
-#     record = Screenshot.objects.get(pk=str_to_datetime(timestamp))
-#     return record
 
 def transform_heatmap(detections):
     df = pd.DataFrame(
@@ -267,33 +262,24 @@ def transform_heatmap(detections):
     return heatmap
 
 
+def get_river_flow(freq: str, periods: int) -> pd.DataFrame:
+    """
+    A function for fetching timeline data
+
+    Args:
+        freq(str)
+            "d", "w", or "y" for grouping timeline by day, week, or year
+        perdiods(int)
+            number of dates to include in timelines
+    """
+    # 13206000 = Boise River at Glenwood
+    period = f"P{periods}{freq.upper()}"
+    response = hydrofunctions.NWIS("13206000", "dv", period=period)
+    data = response.df()
+    return data
+
+
 if __name__ == "__main__":
     from run import app
     from models import Screenshot
     import pandas as pd
-
-# def calc_error(count_series, test_series):
-#     return abs(count_series - test_series).sum() / test_series.sum()
-
-# def getInfo(site_id):
-#     data = hf.site_file(site_id).table.to_json()
-#     return data
-
-# def getTimeline(site_id, start_date, end_date):
-#     data = hf.NWIS(site_id, "dv", start_date=start_date, end_date=end_date).df()
-#     data = data[[data.columns[0]]]
-#     data["date"] = [str(i.date()) for i in data.index]
-#     data = data.set_index("date")
-#     return data
-
-# def getDelta(site_id, end_date, freq="d"):
-#     # freq: d (day), w (week), y (year)
-#     date_range = [
-#         str(i.date()) for i in pd.date_range(end_date, periods=3, freq=f"-3{freq}")
-#     ]
-#     current_period = getTimeline(site_id, date_range[1], date_range[0])
-#     previous_period = getTimeline(site_id, date_range[2], date_range[1])
-#     current_avg = current_period.mean()
-#     previous_avg = previous_period.mean()
-#     data = {"current": current_avg.values[0], "previous": previous_avg.values[0]}
-#     return data

@@ -14,6 +14,11 @@ import pytz
 import requests
 import json
 import hydrofunctions
+import asyncio
+import time
+import nest_asyncio
+from pyppeteer import launch
+
 
 load_dotenv()
 
@@ -264,7 +269,7 @@ def transform_heatmap(detections):
 
 def get_river_flow(freq: str, periods: int) -> pd.DataFrame:
     """
-    A function for fetching timeline data
+    Gets river flow timeline data
 
     Args:
         freq(str)
@@ -277,6 +282,21 @@ def get_river_flow(freq: str, periods: int) -> pd.DataFrame:
     response = hydrofunctions.NWIS("13206000", "dv", period=period)
     data = response.df()
     return data
+
+
+nest_asyncio.apply()
+chrome_path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+
+
+async def screenshot_wave(name: str) -> str:
+    browser = await launch(executablePath=chrome_path, headless=False)
+    page = await browser.newPage()
+    await page.goto("https://www.boisewhitewaterpark.com/waveshaper-cam")
+    time.sleep(5)
+    element = await page.querySelector("iframe")
+    await element.screenshot({"path": name})
+    await browser.close()
+    print(f"Screenshot {name} complete")
 
 
 if __name__ == "__main__":

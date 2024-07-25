@@ -103,13 +103,25 @@ class Screenshot(models.Model):
         return potential_detectors
 
 
+def remove_duplicates(objects, property_name):
+    seen = set()
+    return [
+        obj
+        for obj in objects
+        if getattr(obj, property_name, None) not in seen
+        and not seen.add(getattr(obj, property_name, None))
+    ]
+
+
 class Detector(object):
     def __init__(self, name, detect_function):
         self.name = name
         self.storage = utils.ScreenshotStore()
         self.detect_function = detect_function
         self.detections = Detection.objects.filter(model=name).order_by("timestamp")
-        self.valid_detections = [i for i in self.detections if not i.is_invalid()]
+        self.valid_detections = remove_duplicates(
+            [i for i in self.detections if not i.is_invalid()], "timestamp"
+        )
         self.screenshots = [
             s for s in [i.get_screenshot() for i in self.valid_detections] if s
         ]

@@ -18,7 +18,7 @@ import asyncio
 import time
 import nest_asyncio
 from pyppeteer import launch
-
+from openai import OpenAI
 
 load_dotenv()
 
@@ -34,20 +34,15 @@ class ScreenshotStore:
         self.bucket = s3.Bucket("edginton-portfolio")
         self.imgcdn = "https://edgewize.imgix.net"
 
-    def upload(self, img, save_path):
-        if "alpha" in save_path:
-            temp_save_path = "detect.png"
-        else:
-            temp_save_path = "detect_other.png"
-        plt.imsave(temp_save_path, img)
-        self.bucket.upload_file(temp_save_path, save_path)
-        os.remove(temp_save_path)
-        # return f"Successful upload to {save_path}"
+    def upload(self, source_path, save_path):
+        self.bucket.upload_file(source_path, save_path)
+        return f"Successful upload to {save_path}"
 
     def get_image(self, key):
-        object = self.bucket.Object(key)
-        if object:
-            img = Image.open(io.BytesIO(object.get()["Body"].read()))
+        print(key)
+        image = self.bucket.Object(key)
+        if image:
+            img = Image.open(io.BytesIO(image.get()["Body"].read()))
         else:
             img = None
         return img
@@ -203,20 +198,108 @@ def delta_detector(image):
     return filtered_detections
 
 
+def detect_objects(detections):
+    print(detections)
+    return {"success": True}
+
+functions = {
+    'detect_objects': detect_objects
+ }
+
+def execute_required_functions(required_actions):
+    tool_outputs = []
+    for tool_call in required_actions.submit_tool_outputs.tool_calls:
+        func_name = tool_call.function.name
+        args = json.loads(tool_call.function.arguments)
+        
+        # Call the corresponding Python function
+        if func_name in functions:
+            function = functions[func_name]
+            # Assuming all functions take a single dictionary argument
+            result = function(**args)  # Calls your function like get_weather(q="Philadelphia PA")
+
+            # Serialize the function's output to JSON
+            result_str = json.dumps(result)
+
+            # Add the result to the list of tool outputs
+            tool_outputs.append({
+                "tool_call_id": tool_call.id,
+                "output": result_str,
+            })
+    return tool_outputs
+
+
+def beta_detector(image_path): 
+    client = OpenAI()
+    conversation_history = []
+    image_file = client.files.create(file=open(image_path, "rb"), purpose="assistants")
+    thread = client.beta.threads.create()
+    message = client.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content=[{"type": "text", "text": "Count the surfers and kayackers in the image"}],
+        attachments=[{"file_id": image_file.id, "tools": [{"type": "code_interpreter"}]}]
+    )    
+    # Run assistant
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id, 
+        assistant_id="asst_gKIzJ8o3LHLUHOX3Awbef8xL", 
+        tool_choice={"type": "function", "function": {"name": "detect_objects"}}
+    )
+    # Display assistant response
+    run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+    # Wait until it is not queued
+    count = 0
+    while(run.status == "queued" or run.status == "in_progress" and count < 5):
+        time.sleep(2)
+        run = client.beta.threads.runs.retrieve(
+            thread_id=thread.id,
+            run_id=run.id
+        )
+        count = count + 1
+
+    if run.status == "requires_action":
+        # Get the tool outputs by executing the required functions
+        tool_outputs = execute_required_functions(run.required_action)
+        # Submit the tool outputs back to the Assistant
+        run = client.beta.threads.runs.submit_tool_outputs(
+            thread_id=thread.id,
+            run_id=run.id,
+            tool_outputs=tool_outputs
+        )
+
+    # Wait until it is not queued
+    count = 0
+    while(run.status == "queued" or run.status == "in_progress" or run.status == "requires_action" and count < 5):
+        time.sleep(2)
+        run = client.beta.threads.runs.retrieve(
+            thread_id=thread.id,
+            run_id=run.id
+        )
+        count = count + 1
+
+    # Retrieve messages from thread after run complete
+    messages = client.beta.threads.messages.list(
+        thread_id=thread.id
+    )
+
+    detection_results = json.loads(message.content[0].text.value)
+    print(detection_results)
+    return detection_results
+
+
 def get_detectors():
-    return {"alpha": alpha_detector, "delta": delta_detector}
+    return {"alpha": alpha_detector, "delta": delta_detector, "beta": beta_detector}
 
 
 def lookup_detector(name):
     detectors = get_detectors()
     return detectors[name]
 
-
 def update_detection(detection, count):
     detection.count = count
     detection.save()
     return detection
-
 
 def str_to_datetime(date_str):
     if "_" in date_str:
@@ -289,14 +372,21 @@ chrome_path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
 
 
 async def screenshot_wave(name: str) -> str:
-    browser = await launch(executablePath=chrome_path, headless=False)
+    browser = await launch(
+        executablePath=chrome_path,
+        headless=True,
+        handleSIGINT=False,
+        handleSIGTERM=False,
+        handleSIGHUP=False,
+    )
     page = await browser.newPage()
+    await page.setViewport({"width": 1700, "height": 1000})
     await page.goto("https://www.boisewhitewaterpark.com/waveshaper-cam")
     time.sleep(5)
     element = await page.querySelector("iframe")
     await element.screenshot({"path": name})
     await browser.close()
-    print(f"Screenshot {name} complete")
+    print(f"Screenshot {datetime.datetime.now()} complete")
 
 
 if __name__ == "__main__":

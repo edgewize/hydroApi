@@ -1,0 +1,42 @@
+{
+    "number_of_surfers": 3,
+    "number_of_kayaks": 1,
+    "detections": [
+        {
+            "type": "surfer",
+            "bounding_box": {
+                "origin_x": 250,
+                "origin_y": 200,
+                "width": 60,
+                "height": 80
+            }
+        },
+        {
+            "type": "surfer",
+            "bounding_box": {
+                "origin_x": 330,
+                "origin_y": 220,
+                "width": 60,
+                "height": 80
+            }
+        },
+        {
+            "type": "surfer",
+            "bounding_box": {
+                "origin_x": 410,
+                "origin_y": 240,
+                "width": 60,
+                "height": 80
+            }
+        },
+        {
+            "type": "kayak",
+            "bounding_box": {
+                "origin_x": 480,
+                "origin_y": 350,
+                "width": 70,
+                "height": 100
+            }
+        }
+    ]
+}

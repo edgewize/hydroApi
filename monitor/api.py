@@ -1,9 +1,10 @@
 from django.http import JsonResponse
-from monitor.models import Screenshot, Detection, Detector
+from monitor.models import Screenshot, Detection, Detector, do_detection
 import monitor.utils as utils
 import asyncio
 import datetime
 import os
+from django.shortcuts import render, redirect
 
 
 def screenshot(request, url_timestamp: str) -> JsonResponse:
@@ -31,7 +32,7 @@ def detection(request, model: str, url_timestamp: str) -> JsonResponse:
             timestamp=detection.timestamp.timestamp(),
             model=detection.model,
             count=detection.count,
-            error=detection.error,
+            error=detection.calc_error,
             imgsrc=detection.imgsrc,
             usage_rating=detection.usage_rating,
         )
@@ -57,7 +58,7 @@ def detector(request, name: str) -> JsonResponse:
         detections=detections,
         detection_count=len(detector.detections),
         valid_detection_count=len(detector.valid_detections),
-        error=detector.error(),
+        error=detector.calc_error(),
         timeline=timeline_data,
         heatmap=detector.heatmap(),
     )
@@ -79,11 +80,18 @@ def flow(request) -> JsonResponse:
     return JsonResponse(payload, content_type="application/json")
 
 
-async def screenshot(request) -> JsonResponse:
-    slug = str(datetime.datetime.now()).replace(" ", "_") + ".png"
-    img_name = os.path.join("screenshots", slug)
-    await utils.screenshot_wave(img_name)
-    img_name = r"images/wave/" + slug
-    upload = utils.ScreenshotStore.upload_file(img_name, img_name)
-    payload = dict(d=upload)
-    return JsonResponse(payload, content_type="application/json")
+
+async def screenshot_wave(request) -> JsonResponse:
+    temp_path = "temp.png"
+    await utils.screenshot_wave(temp_path)
+    timestamp = datetime.datetime.now()
+    slug = str(timestamp)
+    save_path = r"images/wave/" + slug + ".png"
+    utils.ScreenshotStore().upload(temp_path, save_path)
+    screenshot = Screenshot(timestamp=timestamp, url=save_path)
+    detection_model = "beta"
+    detect_function = utils.lookup_detector(detection_model)
+    detection = await do_detection(detection_model, screenshot, detect_function)
+    context = dict(slug=slug, screenshot=screenshot, detection=detection)
+    return render(request, "recur.html", context=context)
+

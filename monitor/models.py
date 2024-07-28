@@ -4,7 +4,10 @@ import pandas as pd
 from django.db import models
 import monitor.utils as utils
 import numpy
+import asyncio
+from matplotlib import pyplot as plt
 
+from asgiref.sync import sync_to_async
 
 class Detection(models.Model):
     id = models.AutoField(primary_key=True)
@@ -33,9 +36,8 @@ class Detection(models.Model):
         else:
             usage = "low"
         return usage
-
-    @property
-    def error(self):
+     
+    def calc_error(self):
         screenshot = self.get_screenshot()
         if screenshot:
             if type(screenshot.human_count) == int and type(self.count) == int:
@@ -63,10 +65,6 @@ class Detection(models.Model):
             return True
         else:
             return False
-
-    def __dict__(self):
-        return self.__attrs__
-
 
 class Screenshot(models.Model):
     timestamp = models.DateTimeField(primary_key=True)
@@ -112,6 +110,11 @@ def remove_duplicates(objects, property_name):
         and not seen.add(getattr(obj, property_name, None))
     ]
 
+@sync_to_async
+def do_detection(model, screenshot, detect_function):
+    detector = Detector(model, detect_function=detect_function)
+    detection = detector.detect(screenshot)
+    return detection
 
 class Detector(object):
     def __init__(self, name, detect_function):
@@ -129,11 +132,17 @@ class Detector(object):
 
     def detect(self, screenshot, update=False):
         image = self.storage.get_image(screenshot.imgpath)
-        img_detections = self.detect_function(image)
+        if self.name == "beta":
+            img_detections = self.detect_function("temp.png")
+        else:
+            img_detections = self.detect_function(image)
         rgb_annotated_image = utils.visualize_detections(image, img_detections)
+        save_path = f"images/wave/{self.name}/{screenshot.url_timestamp}.png"
+        detect_temp_path = "detect_temp.png"
+        plt.imsave(detect_temp_path, rgb_annotated_image)
         self.storage.upload(
-            rgb_annotated_image,
-            f"images/wave/{self.name}/{screenshot.url_timestamp}.png",
+            detect_temp_path,
+            save_path
         )
         detection_count = len(img_detections)
         detections = Detection.objects.filter(
@@ -147,8 +156,8 @@ class Detector(object):
             detection = Detection(
                 timestamp=screenshot.timestamp, model=self.name, count=detection_count
             )
-        print(f"Detected {detection.count} objects in {screenshot.timestamp}")
         detection.save()
+        print(f"Detected {detection.count} objects in {screenshot.timestamp}")
         return detection
 
     def refresh(self, count):
@@ -166,7 +175,7 @@ class Detector(object):
             print(f"Detected {detection.count} objects in {screenshot.timestamp}")
 
     def get_screenshot(self, timestamp):
-        screenshots = [i for i in self.screenshots if i.timestamp == timestamp]
+        screenshots = [i for i in self.screenshots if i.timestamp == timestamp] 
         if len(screenshots) == 0:
             # new timstammp in storage and it needs a db record here
             screenshot = Screenshot(timestamp=timestamp)
@@ -183,7 +192,7 @@ class Detector(object):
         screenshot = self.get_screenshot(latest_timestamp)
         return screenshot
 
-    def error(self):
+    def calc_error(self):
         human_counts = []
         errors = []
         for screenshot in self.reviewed_screenshots:
@@ -191,7 +200,7 @@ class Detector(object):
             if human_count:
                 detections = screenshot.get_detections(model=self.name)
                 for detection in detections:
-                    error = detection.error
+                    error = detection.calc_error()
                     human_counts.append(human_count)
                     errors.append((abs(error)))
         try:
@@ -205,7 +214,7 @@ class Detector(object):
         returns set(low, high)
         """
         count = detection.count
-        error = self.error()
+        error = self.calc_error()
         if count and error:
             error_amount = count * error
             low = count - error_amount
@@ -226,7 +235,7 @@ class Detector(object):
                     }
                 )
                 .set_index("timestamp")
-                .groupby(pd.Grouper(freq="d"))
+                .groupby(pd.Grouper(freq="h"))
                 .mean()
             )
             .reset_index()

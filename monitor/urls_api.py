@@ -7,5 +7,5 @@ urlpatterns = [
     path("detection/<str:model>/<str:url_timestamp>", api.detection, name="detection"),
     path("detector/<str:name>", api.detector, name="detector"),
     path("flow", api.flow, name="flow"),
-    path("screenshot", api.screenshot, name="screenshot")
+    path("screenshot_wave/", api.screenshot_wave, name="screenshot_wave")
 ]

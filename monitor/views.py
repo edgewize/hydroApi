@@ -92,7 +92,7 @@ def detector(request, name):
             "total": len(detector.detections),
             "valid": len(detector.valid_detections),
             "reviewed": len(detector.reviewed_screenshots),
-            "error": detector.error(),
+            "error": detector.calc_error(),
         },
     }
     return render(request, "detector.html", context=context)

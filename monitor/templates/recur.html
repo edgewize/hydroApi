@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<article>
+    <hgroup>
+      <h2>
+        Screenshot
+      </h2>
+      <p>Slug: {{ slug }}</p>
+      <div class="grid">
+        <p>
+          <img src="{{ screenshot.imgsrc }}" alt="">
+        </p>
+        <p>
+          <img src="{{ detection.imgsrc }}" alt="">
+        </p>
+      </div>
+      <script>
+        // Function to reload the page
+        function reloadPage() {
+            window.location.reload();
+        }
+
+        // Set timeout to call the reload function every 15 minutes (900,000 milliseconds)
+        setTimeout(reloadPage, 900000);
+    </script>
+    </hgroup>
+  </article>
+  {% endblock %}

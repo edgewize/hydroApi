@@ -198,12 +198,12 @@ def delta_detector(image):
     return filtered_detections
 
 
-def detect_objects(detections):
+def openai_detect_objects(detections):
     print(detections)
     return {"success": True}
 
 functions = {
-    'detect_objects': detect_objects
+    'openai_detect_objects': openai_detect_objects
  }
 
 def execute_required_functions(required_actions):

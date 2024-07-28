@@ -89,7 +89,7 @@ async def screenshot_wave(request) -> JsonResponse:
     save_path = r"images/wave/" + slug + ".png"
     utils.ScreenshotStore().upload(temp_path, save_path)
     screenshot = Screenshot(timestamp=timestamp, url=save_path)
-    detection_model = "beta"
+    detection_model = "delta"
     detect_function = utils.lookup_detector(detection_model)
     detection = await do_detection(detection_model, screenshot, detect_function)
     context = dict(slug=slug, screenshot=screenshot, detection=detection)

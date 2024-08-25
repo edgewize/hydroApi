@@ -4,7 +4,14 @@ import monitor.utils as utils
 import asyncio
 import datetime
 import os
+import ast
+import urllib
+import json
+import pytz 
 from django.shortcuts import render, redirect
+import numpy as np
+import cv2
+from django.db.models import Q
 
 
 def screenshot(request, url_timestamp: str) -> JsonResponse:
@@ -80,7 +87,6 @@ def flow(request) -> JsonResponse:
     return JsonResponse(payload, content_type="application/json")
 
 
-
 async def screenshot_wave(request) -> JsonResponse:
     temp_path = "temp.png"
     await utils.screenshot_wave(temp_path)
@@ -89,9 +95,22 @@ async def screenshot_wave(request) -> JsonResponse:
     save_path = r"images/wave/" + slug + ".png"
     utils.ScreenshotStore().upload(temp_path, save_path)
     screenshot = Screenshot(timestamp=timestamp, url=save_path)
-    detection_model = "delta"
+    detection_model = "yolo_1"
     detect_function = utils.lookup_detector(detection_model)
     detection = await do_detection(detection_model, screenshot, detect_function)
     context = dict(slug=slug, screenshot=screenshot, detection=detection)
     return render(request, "recur.html", context=context)
 
+
+def batch_detect(request):
+    detection_model = "yolo_3"
+    screenshots = Screenshot.objects.filter(~Q(human_mode="invalid")).order_by(
+        "-timestamp"
+    )
+    for screenshot in screenshots:
+        if screenshot.timestamp.date() > datetime.date(2024, 1, 1):
+            detect_function = utils.lookup_detector(detection_model)
+            screenshot_detector = Detector(detection_model, detect_function)
+            detection = screenshot_detector.detect(screenshot)
+            print("Detected: " + detection.imgsrc)
+    return redirect("/detector/" + detection_model)

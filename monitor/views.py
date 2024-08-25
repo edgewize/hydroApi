@@ -3,10 +3,10 @@ from django.http import HttpResponse
 import pandas as pd
 import monitor.utils as utils
 from monitor.models import Screenshot, Detection, Detector
-
+from django.db.models import Q
 
 def index(request):
-    detection_model = "delta"
+    detection_model = "yolo"
     detect_function = utils.lookup_detector(detection_model)
     screenshot_detector = Detector(detection_model, detect_function)
     screenshot = screenshot_detector.detect_latest_screenshot()
@@ -23,7 +23,7 @@ def index(request):
 
 
 def screenshots(request):
-    screenshots = Screenshot.objects.all().order_by("-timestamp")
+    screenshots = Screenshot.objects.filter(~Q(human_mode='invalid')).order_by("-timestamp")
     review_count = Screenshot.objects.filter(reviewed=True).count()
     context = {"screenshots": screenshots, "review_count": review_count}
     return render(request, "screenshots.html", context)

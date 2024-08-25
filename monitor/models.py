@@ -5,9 +5,12 @@ from django.db import models
 import monitor.utils as utils
 import numpy
 import asyncio
+import ast
+import urllib
 from matplotlib import pyplot as plt
 
 from asgiref.sync import sync_to_async
+
 
 class Detection(models.Model):
     id = models.AutoField(primary_key=True)
@@ -36,7 +39,7 @@ class Detection(models.Model):
         else:
             usage = "low"
         return usage
-     
+
     def calc_error(self):
         screenshot = self.get_screenshot()
         if screenshot:
@@ -66,6 +69,7 @@ class Detection(models.Model):
         else:
             return False
 
+
 class Screenshot(models.Model):
     timestamp = models.DateTimeField(primary_key=True)
     url = models.CharField(max_length=99, null=True)
@@ -83,7 +87,7 @@ class Screenshot(models.Model):
 
     @property
     def imgsrc(self):
-        return utils.ScreenshotStore().imgcdn_src("/" + self.imgpath)
+        return utils.ScreenshotStore().imgcdn_src("/" + self.imgpath.replace(" ", "%20"))
 
     def get_detections(self, model=None):
         if model:
@@ -110,11 +114,13 @@ def remove_duplicates(objects, property_name):
         and not seen.add(getattr(obj, property_name, None))
     ]
 
+
 @sync_to_async
 def do_detection(model, screenshot, detect_function):
     detector = Detector(model, detect_function=detect_function)
     detection = detector.detect(screenshot)
     return detection
+
 
 class Detector(object):
     def __init__(self, name, detect_function):
@@ -134,16 +140,20 @@ class Detector(object):
         image = self.storage.get_image(screenshot.imgpath)
         if self.name == "beta":
             img_detections = self.detect_function("temp.png")
+        elif "yolo" in self.name:
+            img_detections = self.detect_function(screenshot.imgsrc)
         else:
             img_detections = self.detect_function(image)
-        rgb_annotated_image = utils.visualize_detections(image, img_detections)
+        if "yolo" in self.name:
+            rgb_annotated_image = utils.label_yolo_image(
+                screenshot.imgsrc, img_detections
+            )
+        else:
+            rgb_annotated_image = utils.visualize_detections(image, img_detections)
         save_path = f"images/wave/{self.name}/{screenshot.url_timestamp}.png"
         detect_temp_path = "detect_temp.png"
         plt.imsave(detect_temp_path, rgb_annotated_image)
-        self.storage.upload(
-            detect_temp_path,
-            save_path
-        )
+        self.storage.upload(detect_temp_path, save_path)
         detection_count = len(img_detections)
         detections = Detection.objects.filter(
             timestamp=screenshot.timestamp, model=self.name
@@ -175,7 +185,7 @@ class Detector(object):
             print(f"Detected {detection.count} objects in {screenshot.timestamp}")
 
     def get_screenshot(self, timestamp):
-        screenshots = [i for i in self.screenshots if i.timestamp == timestamp] 
+        screenshots = [i for i in self.screenshots if i.timestamp == timestamp]
         if len(screenshots) == 0:
             # new timstammp in storage and it needs a db record here
             screenshot = Screenshot(timestamp=timestamp)

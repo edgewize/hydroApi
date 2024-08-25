@@ -16,9 +16,12 @@ import json
 import hydrofunctions
 import asyncio
 import time
+import replicate
 import nest_asyncio
 from pyppeteer import launch
 from openai import OpenAI
+import ast
+import urllib
 
 load_dotenv()
 
@@ -202,34 +205,38 @@ def openai_detect_objects(detections):
     print(detections)
     return {"success": True}
 
-functions = {
-    'openai_detect_objects': openai_detect_objects
- }
+
+functions = {"openai_detect_objects": openai_detect_objects}
+
 
 def execute_required_functions(required_actions):
     tool_outputs = []
     for tool_call in required_actions.submit_tool_outputs.tool_calls:
         func_name = tool_call.function.name
         args = json.loads(tool_call.function.arguments)
-        
+
         # Call the corresponding Python function
         if func_name in functions:
             function = functions[func_name]
             # Assuming all functions take a single dictionary argument
-            result = function(**args)  # Calls your function like get_weather(q="Philadelphia PA")
+            result = function(
+                **args
+            )  # Calls your function like get_weather(q="Philadelphia PA")
 
             # Serialize the function's output to JSON
             result_str = json.dumps(result)
 
             # Add the result to the list of tool outputs
-            tool_outputs.append({
-                "tool_call_id": tool_call.id,
-                "output": result_str,
-            })
+            tool_outputs.append(
+                {
+                    "tool_call_id": tool_call.id,
+                    "output": result_str,
+                }
+            )
     return tool_outputs
 
 
-def beta_detector(image_path): 
+def beta_detector(image_path):
     client = OpenAI()
     conversation_history = []
     image_file = client.files.create(file=open(image_path, "rb"), purpose="assistants")
@@ -237,25 +244,26 @@ def beta_detector(image_path):
     message = client.beta.threads.messages.create(
         thread_id=thread.id,
         role="user",
-        content=[{"type": "text", "text": "Count the surfers and kayackers in the image"}],
-        attachments=[{"file_id": image_file.id, "tools": [{"type": "code_interpreter"}]}]
-    )    
+        content=[
+            {"type": "text", "text": "Count the surfers and kayackers in the image"}
+        ],
+        attachments=[
+            {"file_id": image_file.id, "tools": [{"type": "code_interpreter"}]}
+        ],
+    )
     # Run assistant
     run = client.beta.threads.runs.create(
-        thread_id=thread.id, 
-        assistant_id="asst_gKIzJ8o3LHLUHOX3Awbef8xL", 
-        tool_choice={"type": "function", "function": {"name": "detect_objects"}}
+        thread_id=thread.id,
+        assistant_id="asst_gKIzJ8o3LHLUHOX3Awbef8xL",
+        tool_choice={"type": "function", "function": {"name": "detect_objects"}},
     )
     # Display assistant response
     run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
     # Wait until it is not queued
     count = 0
-    while(run.status == "queued" or run.status == "in_progress" and count < 5):
+    while run.status == "queued" or run.status == "in_progress" and count < 5:
         time.sleep(2)
-        run = client.beta.threads.runs.retrieve(
-            thread_id=thread.id,
-            run_id=run.id
-        )
+        run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
         count = count + 1
 
     if run.status == "requires_action":
@@ -263,43 +271,131 @@ def beta_detector(image_path):
         tool_outputs = execute_required_functions(run.required_action)
         # Submit the tool outputs back to the Assistant
         run = client.beta.threads.runs.submit_tool_outputs(
-            thread_id=thread.id,
-            run_id=run.id,
-            tool_outputs=tool_outputs
+            thread_id=thread.id, run_id=run.id, tool_outputs=tool_outputs
         )
 
     # Wait until it is not queued
     count = 0
-    while(run.status == "queued" or run.status == "in_progress" or run.status == "requires_action" and count < 5):
+    while (
+        run.status == "queued"
+        or run.status == "in_progress"
+        or run.status == "requires_action"
+        and count < 5
+    ):
         time.sleep(2)
-        run = client.beta.threads.runs.retrieve(
-            thread_id=thread.id,
-            run_id=run.id
-        )
+        run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
         count = count + 1
 
     # Retrieve messages from thread after run complete
-    messages = client.beta.threads.messages.list(
-        thread_id=thread.id
-    )
+    messages = client.beta.threads.messages.list(thread_id=thread.id)
 
     detection_results = json.loads(message.content[0].text.value)
     print(detection_results)
     return detection_results
 
 
+def yolo_detector(image_url):
+    input = {
+        "input_image": image_url,
+        "nms": 0.7,
+        "conf": 0.1,
+        "tsize": 640,
+        "model_name": "yolox-s",
+        "return_json": True,
+    }
+    output = replicate.run(
+        "daanelson/yolox:ae0d70cebf6afb2ac4f5e4375eb599c178238b312c8325a9a114827ba869e3e9",
+        input=input,
+    )
+    detections = json.loads(ast.literal_eval(output["json_str"]).replace("'", '"'))
+    return detections
+
+
+def yolo_1_detector(image_url):
+    input = {
+        "input_image": image_url,
+        "nms": 0.9,
+        "conf": 0.05,
+        "tsize": 640,
+        "model_name": "yolox-s",
+        "return_json": True,
+    }
+    output = replicate.run(
+        "daanelson/yolox:ae0d70cebf6afb2ac4f5e4375eb599c178238b312c8325a9a114827ba869e3e9",
+        input=input,
+    )
+    json_str = output["json_str"]
+    if json_str == "":
+        detections = []
+    else:
+        detections = json.loads(ast.literal_eval(json_str).replace("'", '"'))
+    return detections
+
+
+def yolo_2_detector(image_url):
+    input = {
+        "input_image": image_url,
+        "nms": 0.5,
+        "conf": 0.01,
+        "tsize": 640,
+        "model_name": "yolox-s",
+        "return_json": True,
+    }
+    output = replicate.run(
+        "daanelson/yolox:ae0d70cebf6afb2ac4f5e4375eb599c178238b312c8325a9a114827ba869e3e9",
+        input=input,
+    )
+    json_str = output["json_str"]
+    if json_str == "":
+        detections = []
+    else:
+        detections = json.loads(ast.literal_eval(json_str).replace("'", '"'))
+    return detections
+
+
+def yolo_3_detector(image_url):
+    input = {
+        "input_image": image_url,
+        "nms": 0.99,
+        "conf": 0.01,
+        "tsize": 640,
+        "model_name": "yolox-s",
+        "return_json": True,
+    }
+    output = replicate.run(
+        "daanelson/yolox:ae0d70cebf6afb2ac4f5e4375eb599c178238b312c8325a9a114827ba869e3e9",
+        input=input,
+    )
+    json_str = output["json_str"]
+    if json_str == "":
+        detections = []
+    else:
+        detections = json.loads(ast.literal_eval(json_str).replace("'", '"'))
+    return detections
+
+
 def get_detectors():
-    return {"alpha": alpha_detector, "delta": delta_detector, "beta": beta_detector}
+    return {
+        "alpha": alpha_detector,
+        "delta": delta_detector,
+        "beta": beta_detector,
+        "yolo": yolo_detector,
+        "yolo_1": yolo_1_detector,
+        "yolo_2": yolo_2_detector,
+        "yolo_3": yolo_3_detector
+    }
 
 
 def lookup_detector(name):
     detectors = get_detectors()
     return detectors[name]
 
+
 def update_detection(detection, count):
     detection.count = count
     detection.save()
     return detection
+
 
 def str_to_datetime(date_str):
     if "_" in date_str:
@@ -367,6 +463,63 @@ def get_river_flow(freq: str, periods: int) -> pd.DataFrame:
     return data
 
 
+def read_image_from_url(image_url):
+    req = urllib.request.urlopen(image_url)
+    arr = np.asarray(bytearray(req.read()), dtype=np.uint8)
+    img = cv2.imdecode(arr, -1)
+    return img
+
+
+def label_yolo_image(image_url, detections):
+    """
+    Labels a detected image with bounding boxes and class labels.
+
+    Args:
+        img (numpy.ndarray): Image array.
+        detections (dict): Dictionary containing detection results.
+    """
+    img = read_image_from_url(image_url)
+    for det_key, det_info in detections.items():
+        x0, y0, x1, y1 = det_info["x0"], det_info["y0"], det_info["x1"], det_info["y1"]
+        score = det_info["score"]
+        cls = det_info["cls"]
+
+        # Draw bounding box
+        cv2.rectangle(
+            img, (int(x0), int(y0)), (int(x1), int(y1)), (0, 255, 0), 2
+        )  # Green box
+
+        # Add label with class and score
+        label = f"{cls}: {score:.2f}"
+
+        # Get text size for the black box
+        (text_width, text_height), _ = cv2.getTextSize(
+            label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
+        )
+
+        # Draw black box
+        cv2.rectangle(
+            img,
+            (int(x0), int(y0 - 2 - text_height)),
+            (int(x0 + text_width), int(y0 - 2)),
+            (0, 0, 0),
+            -1,
+        )
+
+        # Put text on top of the black box
+        cv2.putText(
+            img,
+            label,
+            (int(x0), int(y0 - 2)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (0, 255, 0),
+            1,
+        )
+
+    return img
+
+
 nest_asyncio.apply()
 chrome_path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
 
@@ -390,6 +543,4 @@ async def screenshot_wave(name: str) -> str:
 
 
 if __name__ == "__main__":
-    from run import app
-    from models import Screenshot
-    import pandas as pd
+    print(__name__)

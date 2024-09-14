@@ -8,6 +8,7 @@ import numpy as np
 import mediapipe as mp
 from dotenv import load_dotenv
 from matplotlib import pyplot as plt
+from PIL.ExifTags import TAGS
 from PIL import Image
 from django.utils import timezone
 import pytz
@@ -22,7 +23,9 @@ from pyppeteer import launch
 from openai import OpenAI
 import ast
 import urllib
-
+import piexif
+import requests
+from collections import defaultdict
 load_dotenv()
 
 
@@ -57,7 +60,7 @@ class ScreenshotStore:
         files = self.list_files("images/wave/")
         # transform file paths and filter timestamp imgs from the base directory
         date_files = [
-            i.split("/")[-1].replace(".png", "").replace("_", " ")
+            i.split("/")[-1].replace(".jpg", "").replace("_", " ")
             for i in files
             if ":" in i and len(i.split("/")) <= 3
         ]
@@ -158,8 +161,8 @@ def purge_imgcdn(imgix_url):
 
 def alpha_detector(image):
     # Mask the image so we only look in the surf line
-    img_bg = resize_image(Image.open("static/img/bg.png"), image.size)
-    img_mask = resize_image(Image.open("static/img/mask.png").convert("L"), image.size)
+    img_bg = resize_image(Image.open("static/img/bg.jpg"), image.size)
+    img_mask = resize_image(Image.open("static/img/mask.jpg").convert("L"), image.size)
     composite = Image.composite(image, img_bg, img_mask)
     # Use mediapipe (mp) images for image detection and annotation.
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGBA, data=np.asarray(composite))
@@ -184,9 +187,9 @@ def delta_detector(image):
         score_threshold=0.0,
         running_mode=VisionRunningMode.IMAGE,
     )
-    img_bg = resize_image(Image.open("static/img/bg.png"), image.size)
+    img_bg = resize_image(Image.open("static/img/bg.jpg"), image.size)
     img_mask = resize_image(
-        Image.open("static/img/delta_mask.png").convert("L"), image.size
+        Image.open("static/img/delta_mask.jpg").convert("L"), image.size
     )
     composite = Image.composite(image, img_bg, img_mask)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGBA, data=np.asarray(composite))
@@ -287,7 +290,7 @@ def beta_detector(image_path):
         count = count + 1
 
     # Retrieve messages from thread after run complete
-    messages = client.beta.threads.messages.list(thread_id=thread.id)
+    messages = client.beta.threads.messages.loist(thread_id=thread.id)
 
     detection_results = json.loads(message.content[0].text.value)
     print(detection_results)
@@ -295,23 +298,6 @@ def beta_detector(image_path):
 
 
 def yolo_detector(image_url):
-    input = {
-        "input_image": image_url,
-        "nms": 0.7,
-        "conf": 0.1,
-        "tsize": 640,
-        "model_name": "yolox-s",
-        "return_json": True,
-    }
-    output = replicate.run(
-        "daanelson/yolox:ae0d70cebf6afb2ac4f5e4375eb599c178238b312c8325a9a114827ba869e3e9",
-        input=input,
-    )
-    detections = json.loads(ast.literal_eval(output["json_str"]).replace("'", '"'))
-    return detections
-
-
-def yolo_1_detector(image_url):
     input = {
         "input_image": image_url,
         "nms": 0.9,
@@ -324,53 +310,7 @@ def yolo_1_detector(image_url):
         "daanelson/yolox:ae0d70cebf6afb2ac4f5e4375eb599c178238b312c8325a9a114827ba869e3e9",
         input=input,
     )
-    json_str = output["json_str"]
-    if json_str == "":
-        detections = []
-    else:
-        detections = json.loads(ast.literal_eval(json_str).replace("'", '"'))
-    return detections
-
-
-def yolo_2_detector(image_url):
-    input = {
-        "input_image": image_url,
-        "nms": 0.5,
-        "conf": 0.01,
-        "tsize": 640,
-        "model_name": "yolox-s",
-        "return_json": True,
-    }
-    output = replicate.run(
-        "daanelson/yolox:ae0d70cebf6afb2ac4f5e4375eb599c178238b312c8325a9a114827ba869e3e9",
-        input=input,
-    )
-    json_str = output["json_str"]
-    if json_str == "":
-        detections = []
-    else:
-        detections = json.loads(ast.literal_eval(json_str).replace("'", '"'))
-    return detections
-
-
-def yolo_3_detector(image_url):
-    input = {
-        "input_image": image_url,
-        "nms": 0.99,
-        "conf": 0.01,
-        "tsize": 640,
-        "model_name": "yolox-s",
-        "return_json": True,
-    }
-    output = replicate.run(
-        "daanelson/yolox:ae0d70cebf6afb2ac4f5e4375eb599c178238b312c8325a9a114827ba869e3e9",
-        input=input,
-    )
-    json_str = output["json_str"]
-    if json_str == "":
-        detections = []
-    else:
-        detections = json.loads(ast.literal_eval(json_str).replace("'", '"'))
+    detections = json.loads(ast.literal_eval(output["json_str"]).replace("'", '"'))
     return detections
 
 
@@ -379,10 +319,7 @@ def get_detectors():
         "alpha": alpha_detector,
         "delta": delta_detector,
         "beta": beta_detector,
-        "yolo": yolo_detector,
-        "yolo_1": yolo_1_detector,
-        "yolo_2": yolo_2_detector,
-        "yolo_3": yolo_3_detector
+        "gamma": yolo_detector
     }
 
 
@@ -478,7 +415,7 @@ def label_yolo_image(image_url, detections):
         img (numpy.ndarray): Image array.
         detections (dict): Dictionary containing detection results.
     """
-    img = read_image_from_url(image_url)
+    img_array = read_image_from_url(image_url)
     for det_key, det_info in detections.items():
         x0, y0, x1, y1 = det_info["x0"], det_info["y0"], det_info["x1"], det_info["y1"]
         score = det_info["score"]
@@ -486,7 +423,7 @@ def label_yolo_image(image_url, detections):
 
         # Draw bounding box
         cv2.rectangle(
-            img, (int(x0), int(y0)), (int(x1), int(y1)), (0, 255, 0), 2
+            img_array, (int(x0), int(y0)), (int(x1), int(y1)), (0, 255, 0), 2
         )  # Green box
 
         # Add label with class and score
@@ -499,7 +436,7 @@ def label_yolo_image(image_url, detections):
 
         # Draw black box
         cv2.rectangle(
-            img,
+            img_array,
             (int(x0), int(y0 - 2 - text_height)),
             (int(x0 + text_width), int(y0 - 2)),
             (0, 0, 0),
@@ -508,7 +445,7 @@ def label_yolo_image(image_url, detections):
 
         # Put text on top of the black box
         cv2.putText(
-            img,
+            img_array,
             label,
             (int(x0), int(y0 - 2)),
             cv2.FONT_HERSHEY_SIMPLEX,
@@ -516,7 +453,20 @@ def label_yolo_image(image_url, detections):
             (0, 255, 0),
             1,
         )
+    img = Image.fromarray(img_array, 'RGB')
+    
+    try:
+        exif_dict = piexif.load(img.info["exif"])
+    except KeyError:
+        exif_dict = defaultdict(dict)
 
+    exif_ifd = {piexif.ExifIFD.UserComment: 'my message'.encode()}
+
+    exif_dict = {"0th": {}, "Exif": exif_ifd, "1st": {},
+            "thumbnail": None, "GPS": {}}
+
+    exif_dat = piexif.dump(exif_dict)
+    img.save("detect_temp.jpg",  exif=exif_dat)
     return img
 
 
@@ -527,7 +477,7 @@ chrome_path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
 async def screenshot_wave(name: str) -> str:
     browser = await launch(
         executablePath=chrome_path,
-        headless=True,
+        headless=True,  
         handleSIGINT=False,
         handleSIGTERM=False,
         handleSIGHUP=False,

@@ -8,9 +8,10 @@ import asyncio
 import ast
 import urllib
 from matplotlib import pyplot as plt
-
+from PIL import PngImagePlugin
 from asgiref.sync import sync_to_async
-
+import piexif
+import requests
 
 class Detection(models.Model):
     id = models.AutoField(primary_key=True)
@@ -24,7 +25,7 @@ class Detection(models.Model):
 
     @property
     def imgpath(self):
-        return f"images/wave/{self.model}/{self.url_timestamp}.png"
+        return f"images/wave/{self.model}/{self.url_timestamp}.jpg"
 
     @property
     def imgsrc(self):
@@ -83,11 +84,24 @@ class Screenshot(models.Model):
 
     @property
     def imgpath(self):
-        return f"images/wave/{self.url_timestamp.replace('_', ' ')}.png"
+        slug = f"/images/wave/{self.url_timestamp.replace('_', ' ')}"
+        return slug
+            
 
     @property
     def imgsrc(self):
-        return utils.ScreenshotStore().imgcdn_src("/" + self.imgpath.replace(" ", "%20"))
+        slug = self.imgpath.replace(" ", "%20")
+        url = utils.ScreenshotStore().imgcdn_src(slug+".png")
+        req = requests.get(url)
+        img_src = False
+        if req.status_code == 200:
+            img_src = url
+        else:
+            url = utils.ScreenshotStore().imgcdn_src(slug+".jpg")
+            req = requests.get(url)
+            if requests.status_code == 200:
+                img_src = url
+        return img_src
 
     def get_detections(self, model=None):
         if model:
@@ -137,23 +151,15 @@ class Detector(object):
         self.reviewed_screenshots = [i for i in self.screenshots if i.reviewed]
 
     def detect(self, screenshot, update=False):
-        image = self.storage.get_image(screenshot.imgpath)
-        if self.name == "beta":
-            img_detections = self.detect_function("temp.png")
-        elif "yolo" in self.name:
-            img_detections = self.detect_function(screenshot.imgsrc)
-        else:
-            img_detections = self.detect_function(image)
-        if "yolo" in self.name:
-            rgb_annotated_image = utils.label_yolo_image(
+        # image = self.storage.get_image(screenshot.imgpath)
+        img_detections = self.detect_function(screenshot.imgsrc)
+        labeled_img = utils.label_yolo_image(
                 screenshot.imgsrc, img_detections
             )
-        else:
-            rgb_annotated_image = utils.visualize_detections(image, img_detections)
-        save_path = f"images/wave/{self.name}/{screenshot.url_timestamp}.png"
-        detect_temp_path = "detect_temp.png"
-        plt.imsave(detect_temp_path, rgb_annotated_image)
-        self.storage.upload(detect_temp_path, save_path)
+        labeled_img.show()
+        save_path = f"images/wave/{self.name}/{screenshot.url_timestamp}.jpg"
+        temp_path = "detect_temp.jpg"
+        self.storage.upload(temp_path, save_path)
         detection_count = len(img_detections)
         detections = Detection.objects.filter(
             timestamp=screenshot.timestamp, model=self.name
@@ -161,12 +167,12 @@ class Detector(object):
         if detections and update:
             detection = detections.first()
             detection.count = detection_count
-            purge_cdn = utils.purge_imgcdn(detection.imgsrc)
         else:
             detection = Detection(
                 timestamp=screenshot.timestamp, model=self.name, count=detection_count
             )
         detection.save()
+        # plt.imsave(detect_temp_path, rgb_annotated_image)
         print(f"Detected {detection.count} objects in {screenshot.timestamp}")
         return detection
 

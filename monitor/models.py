@@ -3,14 +3,7 @@ import plotly.graph_objs as go
 import pandas as pd
 from django.db import models
 import monitor.utils as utils
-import numpy
-import asyncio
-import ast
-import urllib
-from matplotlib import pyplot as plt
-from PIL import PngImagePlugin
 from asgiref.sync import sync_to_async
-import piexif
 import requests
 
 class Detection(models.Model):
@@ -250,14 +243,14 @@ class Detector(object):
                         "count": [i.count for i in detections],
                     }
                 )
-                .set_index("timestamp")
+            .set_index("timestamp") 
                 .groupby(pd.Grouper(freq="h"))
                 .mean()
             )
             .reset_index()
             .dropna()
         )
-        x = list(df["timestamp"].apply(lambda x: str(x.date())))
+        x = list(df["timestamp"].apply(lambda x: str(x.date())))    
         y = list(df["count"].values)
         data = dict(x=x, y=y)
         return data

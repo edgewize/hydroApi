@@ -2,6 +2,7 @@
 .vscode
 mask.xcf
 env
+envlite
 wslenv
 instance
 *__pycache__

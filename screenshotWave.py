@@ -49,9 +49,9 @@ class ScreenshotStore:
         s3 = boto3.resource(
             "s3",
             endpoint_url="https://s3.us-west-1.wasabisys.com",
-            aws_access_key_id=os.getenv("WASABI_ACCESS"),
-            aws_secret_access_key=os.getenv("WASABI_SECRET"),
         )
+        print(os.getenv("WASABI_ACCESS"))
+        print(os.getenv("WASABI_SECRET"))
         self.bucket = s3.Bucket("edginton-portfolio")
         self.imgcdn = "https://edgewize.imgix.net"
 

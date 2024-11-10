@@ -15,9 +15,10 @@ import cv2
 from PIL.ExifTags import TAGS
 from PIL import Image
 import piexif
-from collections import defaultdict
+from collections import defaultdict, Counter
 from pyppeteer import launch
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -43,7 +44,7 @@ async def screenshot_wave(save_path) -> str:
     await page.setViewport({"width": 1700, "height": 1000})
     await page.goto("https://www.boisewhitewaterpark.com/waveshaper-cam")
     time.sleep(3)
-    page.reload()
+    await page.reload()
     time.sleep(10)
     element = await page.querySelector("iframe")
     await element.screenshot({"path": save_path})
@@ -57,8 +58,6 @@ class ScreenshotStore:
             "s3",
             endpoint_url="https://s3.us-west-1.wasabisys.com",
         )
-        print(os.getenv("WASABI_ACCESS"))
-        print(os.getenv("WASABI_SECRET"))
         self.bucket = s3.Bucket("edginton-portfolio")
         self.imgcdn = "https://edgewize.imgix.net"
 
@@ -195,6 +194,37 @@ def label_yolo_image(image_url, detections):
     ScreenshotStore().upload_image(temp_path, upload_path="wave/gamma/"+slug)
     return img
 
+
+
+def quantize_colors(image, num_colors):
+    h, w = image.shape[:2]
+    pixels = image.reshape(-1, 3)
+    criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+    _, labels, centers = cv2.kmeans(pixels.astype(np.float32), num_colors, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)  
+    centers = np.uint8(centers)
+    quantized_image = centers[labels.flatten()].reshape(h, w, 3)
+    return quantized_image
+
+def color_proportions(image):
+    pixels = image.reshape(-1, 3)
+    color_counts = Counter(tuple(pixel) for pixel in pixels)
+    total_pixels = image.shape[0] * image.shape[1]
+    proportions = {color: count / total_pixels for color, count in color_counts.items()}
+    return proportions
+
+def is_camera_loading(img_path):
+    img = cv2.imread(img_path)
+    # hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    quantized_img = quantize_colors(img, num_colors=16)  # Or use hsv_img
+    proportions = color_proportions(quantized_img)  # Or use hsv_img
+    too_much_black = False
+    if (0,0,0) in proportions.keys():
+        amount = proportions[(0,0,0)]
+        if amount > 0.5:
+            too_much_black = True
+    return too_much_black
+
+
 async def batch():
     store = ScreenshotStore()
     files = store.list_files("images/wave")
@@ -211,15 +241,31 @@ async def batch():
                     detect_img = label_yolo_image(src_img_url, detections)
                     detect_img.show()
 
+async def take_good_shot(img_path, attempt, target_attempts=3):
+    if attempt <= target_attempts:
+        print(f"Screenshot attempt {attempt+1}")
+        await screenshot_wave(img_path)
+        is_loading = is_camera_loading(img_path)
+        if is_loading:
+            await take_good_shot(img_path, attempt+1)
+        else:
+            return True
+    else:
+        return False
+        
 async def main():
     temp_path = "temp.jpg"
-    await screenshot_wave(temp_path)
-    upload_path = ScreenshotStore().upload_image(temp_path)
-    img_src = IMG_CDN+upload_path
-    detections = yolo_detector(img_src)
-    print(f"Detected {len(detections)} objects in {img_src}")
-    detect_img = label_yolo_image(img_src, detections)
-    detect_img.show()
+    good_shot = await take_good_shot(temp_path, 0)
+    if good_shot:
+        upload_path = ScreenshotStore().upload_image(temp_path)
+        img_src = IMG_CDN+upload_path
+        detections = yolo_detector(img_src)
+        print(f"Detected {len(detections)} objects in {img_src}")
+        detect_img = label_yolo_image(img_src, detections)
+        detect_img.show()
+    else:
+        print("No good shot. Try again later.")
+    print("Waiting...")
     time.sleep(60 * 15)
     await main()
 

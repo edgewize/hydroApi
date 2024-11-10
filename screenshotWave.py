@@ -23,7 +23,7 @@ load_dotenv()
 
 nest_asyncio.apply()
 windows_chrome_path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-pi_chrome_path = "/usr/bin/chromium"
+pi_chrome_path = "/usr/bin/firefox-esr"
 if os.path.isfile(windows_chrome_path):
     chrome_path = windows_chrome_path
 elif os.path.isfile(pi_chrome_path):
@@ -42,7 +42,9 @@ async def screenshot_wave(save_path) -> str:
     page = await browser.newPage()
     await page.setViewport({"width": 1700, "height": 1000})
     await page.goto("https://www.boisewhitewaterpark.com/waveshaper-cam")
-    time.sleep(20)
+    time.sleep(3)
+    page.reload()
+    time.sleep(10)
     element = await page.querySelector("iframe")
     await element.screenshot({"path": save_path})
     await browser.close()

@@ -15,7 +15,6 @@ import cv2
 from PIL.ExifTags import TAGS
 from PIL import Image
 import piexif
-import piexif
 from collections import defaultdict
 from pyppeteer import launch
 from dotenv import load_dotenv
@@ -23,13 +22,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 nest_asyncio.apply()
-chrome_path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+windows_chrome_path = "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+pi_chrome_path = "/usr/bin/chromium"
+if os.path.isfile(windows_chrome_path):
+    chrome_path = windows_chrome_path
+elif os.path.isfile(pi_chrome_path):
+    chrome_path = pi_chrome_path
 
+IMG_CDN = "https://edgewize.imgix.net/"
 
 async def screenshot_wave(save_path) -> str:
     browser = await launch(
         executablePath=chrome_path,
-        headless=True,
+        headless=False,
         handleSIGINT=False,
         handleSIGTERM=False,
         handleSIGHUP=False,
@@ -37,7 +42,7 @@ async def screenshot_wave(save_path) -> str:
     page = await browser.newPage()
     await page.setViewport({"width": 1700, "height": 1000})
     await page.goto("https://www.boisewhitewaterpark.com/waveshaper-cam")
-    time.sleep(5)
+    time.sleep(20)
     element = await page.querySelector("iframe")
     await element.screenshot({"path": save_path})
     await browser.close()
@@ -83,10 +88,10 @@ def yolo_detector(image_url):
         "daanelson/yolox:ae0d70cebf6afb2ac4f5e4375eb599c178238b312c8325a9a114827ba869e3e9",
         input=input,
     )
-    if len(output["json_str"]) > 2:
+    try:
         detections = json.loads(ast.literal_eval(output["json_str"]).replace("'", '"'))
-    else:
-        return []
+    except json.decoder.JSONDecodeError:
+        detections = {}
     return detections
 
 
@@ -185,10 +190,8 @@ def label_yolo_image(image_url, detections):
     temp_path = "detect_temp.jpg"
     img.save(temp_path, exif=exif_dat)
     slug = image_url.split("/")[-1]
-    upload_detection = ScreenshotStore().upload_image(temp_path, upload_path="wave/gamma/"+slug)
+    ScreenshotStore().upload_image(temp_path, upload_path="wave/gamma/"+slug)
     return img
-
-IMG_CDN = "https://edgewize.imgix.net/"
 
 async def batch():
     store = ScreenshotStore()
@@ -210,7 +213,7 @@ async def main():
     temp_path = "temp.jpg"
     await screenshot_wave(temp_path)
     upload_path = ScreenshotStore().upload_image(temp_path)
-    img_src = "https://edgewize.imgix.net/"+upload_path
+    img_src = IMG_CDN+upload_path
     detections = yolo_detector(img_src)
     print(f"Detected {len(detections)} objects in {img_src}")
     detect_img = label_yolo_image(img_src, detections)
